@@ -1,0 +1,846 @@
+import math
+from scipy.optimize import least_squares
+from scipy.optimize import least_squares, differential_evolution
+import numpy as np
+import sympy as sp
+import itertools
+
+def resultado_angulos(estrutura, picos, distancias, comp_de_onda, h, k, l, a, media_a):
+    print(estrutura)
+    print("Ângulo |   2-Theta   |   distância interplanar   |    h k l   |    a    ")
+    angulo = 0
+    for pico in picos:
+        print("  ", angulo, "     ", pico, "          ", '{:.{}f}'.format(round((distancias[angulo]), 6), 6),
+              "    ",
+              "             ", h[angulo],
+              k[angulo], l[angulo], "    ", '{:.{}f}'.format(round(a[angulo], 6), 6))
+        angulo += 1
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+
+def angulos(nome_estrutura):
+    picos = []
+    h = []
+    k = []
+    l = []
+    distancia = []
+
+    # n = int(input("Digite o número de picos: "))
+    comp_de_onda = float(input("Comprimento de onda: "))
+    for i in range(n):
+        angulo = i
+        valor = float(input("Digite o valor do ângulo: "))
+        distancia[angulo] = float(comp_de_onda / (2.0 * math.sin(math.radians(valor / 2.0))))
+        picos[angulo] = valor
+        h[angulo] = int(input("Digite o valor de h: "))
+        k[angulo] = int(input("Digite o valor de k: "))
+        l[angulo] = int(input("digite o valor de l: "))
+
+    return nome_estrutura, picos, distancia, comp_de_onda, h, k, l
+
+
+def angulosTeste(picos):
+    # n = int(input("Digite o número de picos: "))
+    distancia = []
+    comp_de_onda = float(input("Comprimento de onda: "))
+    for i in range(len(picos)):
+        angulo = i
+        valor = picos[angulo]
+        distancia.append(float(comp_de_onda / (2.0 * math.sin(math.radians(valor / 2.0)))))
+
+    return "Estrutura", distancia, comp_de_onda
+
+
+def cubica():
+    a = []
+    media = float(0)
+
+    #LiCl - cloreto de lítio
+    picos = [30.18, 30.18, 30.18, 30.18, 34.98, 34.98, 34.98, 50.31, 50.31, 50.31, 50.31, 50.31, 50.31, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 59.79, 62.75, 62.75, 62.75, 62.75, 73.90, 73.90, 73.90, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 81.85, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 84.46, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 94.83, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 102.69, 116.46, 116.46, 116.46, 116.46, 116.46, 116.46]
+    h = [1, 1, 1, 1, 0, 2, 0, 2, 2, 0, 2, 2, 0, 1, 1, 1, 1, 1, 3, 1, 3, 3, 3, 1, 1, 2, 2, 2, 2, 4, 0, 0, 3, 1, 3, 1, 3, 3, 3, 3, 1, 3, 3, 1, 4, 2, 0, 2, 0, 2, 4, 2, 4, 0, 4, 0, 2, 2, 4, 2, 4, 2, 4, 2, 4, 2, 2, 2, 1, 1, 5, 5, 1, 1, 1, 3, 5, 1, 3, 1, 3, 3, 5, 1, 0, 4, 4, 4, 0, 4]
+    k = [1, 1, -1, -1, 2, 0, 0, 2, 0, 2, -2, 0, 2, 1, -1, 1, -1, 3, -1, -3, 1, 1, -1, -3, 3, -2, 2, -2, 2, 0, 4, 0, 1, 3, -3, -3, -3, -1, 1, -1, 3, 3, 3, -3, 2, 4, 4, 0, 2, 0, -2, -4, 0, 2, 0, 4, -2, 2, 2, 4, -2, -4, -2, -4, 2, 2, 4, -2, -1, 5, 1, -1, -5, 1, -5, 3, 1, 5, 3, 1, -3, -3, -1, -1, 4, 4, 0, 0, 4, -4]
+    l = [1, -1, 1, -1, 0, 0, 2, 0, -2, -2, 0, 2, 2, -3, 3, 3, -3, 1, 1, 1, 1, -1, -1, -1, -1, 2, -2, -2, 2, 0, 0, 4, -3, -3, -1, 3, 1, -3, 3, 3, 3, 1, -1, -3, 0, 0, 2, -4, -4, 4, 0, 0, -2, 4, 2, -2, 4, -4, 2, 2, 2, 2, -2, -2, -2, 4, -2, -4, 5, -1, 1, -1, 1, -5, -1, 3, -1, 1, -3, 5, 3, -3, 1, -5, -4, 0, -4, 4, 4, 0]
+
+    conta = 0
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Cúbica")
+    nome_estrutura, distancias, comp_de_onda = angulosTeste(picos)
+    for distancia in distancias:
+        a.append(distancia * (math.sqrt((h[conta] ** 2) + (k[conta] ** 2) + (l[conta] ** 2))))
+        media = media + a[conta]
+        conta += 1
+
+    media = media / conta
+    print(media)
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstrons")
+    resultado_angulos(nome_estrutura, picos, distancias, comp_de_onda, h, k, l, a, media)
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
+    maior_valor = max(a)
+    menor_valor = min(a)
+    print("O maior valor de a é: ", maior_valor)
+    print("O menor valor de a é: ", menor_valor)
+
+
+def tetragonal():
+    a = []
+    c = []
+    p = 2
+
+    #SnO2 - dióxido de estanho
+    picos = [26.62, 33.93, 38.01, 51.86, 54.84, 61.98, 64.85, 66.07]
+    h = [1, 0, 0, 2, 2, 3, 1, 0]
+    k = [-1, 1, 2, 1, -2, 1, 1, 3]
+    l = [0, 1, 0, 1, 0, 0, -2, 1]
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_c = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Tetragonal")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x e y
+        x, y = sp.symbols('x y')
+
+        # Definindo as equações
+        equation1 = sp.Eq((((h[angulo1]) ** 2 + (k[angulo1] ** 2)) / (x ** 2)) + ((l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq(
+            (((h[angulo2]) ** 2 + (k[angulo2] ** 2)) / (x ** 2)) + ((l[angulo2] ** 2) / (y ** 2)),
+            1 / (distancia[angulo2]) ** 2)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        if len(solution) != 0:
+            a.append(float(solution[3][0]))
+            c.append(float(solution[3][1]))
+            media_a = media_a + solution[3][0]
+            media_c = media_c + solution[3][1]
+            # cont += 1
+            conta += 1
+
+        print("Solução do sistema de equações:")
+        print(solution)
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+    media_a = media_a / conta
+    media_c = media_c / conta
+
+    print("Tetragonal")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
+
+def ortorrombica():
+    a = []
+    b = []
+    c = []
+    p = 3
+
+    #SrCO3 - carbonato de estrôncio
+    picos = [20.34, 21.12, 25.19, 25.83, 29.64, 31.53, 34.56, 35.14, 36.22, 36.55, 36.68, 41.36, 43.00, 44.12, 45.68, 46.62, 47.74, 49.97, 50.33, 57.29, 58.91, 59.87, 63.97, 66.70, 72.06, 72.89, 73.75, 73.82, 74.28, 74.65, 75.25, 76.10, 77.68]
+    h = [0, 0, 1, 1, 2, 2, 2, 0, 2, 0, 2, 0, 0, 1, 1, 2, 2, 3, 3, 1, 1, 1, 0, 0, 2, 4, 4, 3, 0, 2, 3, 3, 0]
+    k = [1, 0, 1, 0, 0, 0, 1, 2, 1, 1, 0, 2, 0, -2, 0, 2, 1, 1, 0, -3, -2, -1, 3, 0, -3, -2, -1, 3, 4, 0, 2, -1, 2]
+    l = [-1, 2, 1, 2, 0, 1, 0, 0, -1, -3, 2, -2, 4, 2, -4, 0, -3, 1, -2, 1, 4, 5, -3, 6, 3, 0, -3, -1, 0, 6, -4, -5, -6]
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_b = float(0)
+    media_c = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Ortorrômbica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 10
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 3))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        angulo3 = combinacao[2]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(
+            picos[angulo3])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x, y e z
+        x, y, z = sp.symbols('x y z')
+
+        # Definindo as equações
+        equation1 = sp.Eq(
+            ((h[angulo1]) ** 2 / (x ** 2)) + ((k[angulo1] ** 2) / (y ** 2)) + ((l[angulo1] ** 2) / (z ** 2)),
+            1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq(
+            ((h[angulo2]) ** 2 / (x ** 2)) + ((k[angulo2] ** 2) / (y ** 2)) + ((l[angulo2] ** 2) / (z ** 2)),
+            1 / (distancia[angulo2]) ** 2)
+
+        equation3 = sp.Eq(
+            ((h[angulo3]) ** 2 / (x ** 2)) + ((k[angulo3] ** 2) / (y ** 2)) + ((l[angulo3] ** 2) / (z ** 2)),
+            1 / (distancia[angulo3]) ** 2)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2, equation3), (x, y, z))
+        if len(solution) != 0:
+            a.append(float(solution[7][1]))
+            b.append(float(solution[7][2]))
+            c.append(float(solution[7][0]))
+            media_a = media_a + solution[7][1]
+            media_b = media_b + solution[7][2]
+            media_c = media_c + solution[7][0]
+            # cont += 1
+            conta += 1
+
+        print("Solução do sistema de equações:")
+        print(solution)
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    media_a = media_a / conta
+    media_b = media_b / conta
+    media_c = media_c / conta
+
+    print("Ortorrômbico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "b" + str(i + 1) + ":" + str(b[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de b:  ", '{:.{}f}'.format(round((media_b), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(b)
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
+
+def hexagonal():
+    a = []
+    c = []
+    p = 2
+
+    #ZnO - óxido de zinco
+    picos = [31.78, 34.44, 36.27, 47.56, 56.62, 62.89, 67.98]
+    h = [1, 0, 0, 0, 2, 0, 2]
+    k = [-1, 0, 1, 1, -1, 1, -1]
+    l = [0, 2, -1, -2, 0, -3, -2]
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_c = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Hexagonal")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x e y
+        x, y = sp.symbols('x y')
+
+        # Definindo as equações
+        equation1 = sp.Eq((4 / 3) * (((h[angulo1]) ** 2 + (h[angulo1] * k[angulo1]) + (k[angulo1] ** 2)) / (x ** 2)) + (
+                    (l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq((4 / 3) * (((h[angulo2]) ** 2 + (h[angulo2] * k[angulo2]) + (k[angulo2] ** 2)) / (x ** 2)) + (
+                    (l[angulo2] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo2]) ** 2)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        if len(solution) != 0:
+            a.append(float(solution[3][0]))
+            c.append(float(solution[3][1]))
+            media_a = media_a + solution[3][0]
+            media_c = media_c + solution[3][1]
+            # cont += 1
+            conta += 1
+
+        print("Solução do sistema de equações:")
+        print(solution)
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    media_a = media_a / conta
+    media_c = media_c / conta
+
+    print("Hexagonal")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Hexagonal")
+    print("angulo_alfa = angulo_beta = 90 graus")
+    print("angulo_gama = 120 graus")
+
+def romboedrica():
+    a = []
+    c = []
+    p = 2
+
+    aR = []
+    angulo_alfa = []
+
+    #Fe2O3 - óxido de ferro(III)
+    picos = [24.17, 33.17, 35.68, 40.90, 49.51, 54.10, 57.59, 62.51, 64.10, 71.94]
+    h = [1, 0, 1, 2, 2, 1, 1, 1, 3, 1]
+    k = [-1, 1, -2, -1, 0, 1, 0, -3, 0, 0]
+    l = [2, -4, 0, -3, -4, -6, -8, 4, 0, 10]
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_c = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Romboédrica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x e y
+        x, y = sp.symbols('x y')
+
+        # Definindo as equações
+        equation1 = sp.Eq((4 / 3) * (((h[angulo1]) ** 2 + (h[angulo1] * k[angulo1]) + (k[angulo1] ** 2)) / (x ** 2)) + (
+                (l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq((4 / 3) * (((h[angulo2]) ** 2 + (h[angulo2] * k[angulo2]) + (k[angulo2] ** 2)) / (x ** 2)) + (
+                (l[angulo2] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo2]) ** 2)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        if len(solution) != 0:
+            a.append(float(solution[3][0]))
+            c.append(float(solution[3][1]))
+            media_a = media_a + solution[3][0]
+            media_c = media_c + solution[3][1]
+            # cont += 1
+            conta += 1
+
+        print("Solução do sistema de equações:")
+        print(solution)
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    media_a = media_a / conta
+    media_c = media_c / conta
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    print("Romboédrico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Romboédrica")
+    print("angulo_alfa = angulo_beta = 90 graus")
+    print("angulo_gama = 120 graus")
+
+    aR = (1/3)*(3*(media_a)**2+(media_c)**2)**0.5
+    print("Valor médio de aR: ", '{:.{}f}'.format(round((aR), 6), 6), " angstrons")
+    desvio = (1/3)*(3*(np.std(a))**2+(np.std(c))**2)**0.5
+    print("Desvio-padrão de aR: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    angulo_alfa = 2*math.degrees(math.asin(3/(2*(3+(media_c/media_a)**2)**0.5)))
+    print("Valor médio de angulo_alfa: ", '{:.{}f}'.format(round((angulo_alfa), 6), 6), " graus")
+
+    sen_alfa_por_2_medio = (3/(2*(3+np.std(c)/np.std(a))**2))
+    desvio_padrao_alfa = 2*math.degrees(math.asin(sen_alfa_por_2_medio))
+
+    print("Devio-padrão do ângulo alfa: ", '{:.{}f}'.format(round((desvio_padrao_alfa), 6), 6), " graus")
+
+def monoclinica():
+    a = []
+    b = []
+    c = []
+    d = []
+    p = 4
+
+    angulo_beta = float(0)
+    angulo_beta_desvio = float(0)
+
+    #SrSiO3 - silicato de estrôncio
+    picos = [17.53, 24.93, 25.00, 30.64, 35.48, 47.59, 75.10]
+    h = [0, 0, 3, 0, 0, 6, 0]
+    k = [0, 2, -1, 2, 0, 0, 0]
+    l = [2, 0, -1, -2, 4, 0, 8]
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_b = float(0)
+    media_c = float(0)
+    media_d = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Monoclínica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 10
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 4))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        angulo3 = combinacao[2]
+        angulo4 = combinacao[3]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(
+            picos[angulo3]) + " e " + str(picos[angulo4])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x, y, z, w
+        w, x, y, z = sp.symbols('w x y z')
+
+        # Definindo as equações
+        v1 = h[angulo1] ** 2
+        v2 = k[angulo1] ** 2
+        v3 = l[angulo1] ** 2
+        v4 = 2 * h[angulo1] * l[angulo1]
+        
+        v1a = h[angulo2] ** 2
+        v2a = k[angulo2] ** 2
+        v3a = l[angulo2] ** 2
+        v4a = 2 * h[angulo2] * l[angulo2]
+        
+        v1b = h[angulo3] ** 2
+        v2b = k[angulo3] ** 2
+        v3b = l[angulo3] ** 2
+        v4b = 2 * h[angulo3] * l[angulo3]
+        
+        v1c = h[angulo4] ** 2
+        v2c = k[angulo4] ** 2
+        v3c = l[angulo4] ** 2
+        v4c = 2 * h[angulo4] * l[angulo4]
+
+        r1 = 1 / (distancia[angulo1]) ** 2
+        r2 = 1 / (distancia[angulo2]) ** 2
+        r3 = 1 / (distancia[angulo3]) ** 2
+        r4 = 1 / (distancia[angulo4]) ** 2
+
+        equation1 = sp.Eq(
+            (1 / (1-w**2)) * (((v1 / (x ** 2)) +
+            ((v2 * (1-w**2)) / (y ** 2))) +
+            (v3 / (z ** 2)) -
+            ((v4 * w) / (x * z))), r1)
+
+        equation2 = sp.Eq(
+            (1 / (1-w**2)) * (((v1a / (x ** 2)) +
+            ((v2a * (1-w**2)) / (y ** 2))) +
+            (v3a / (z ** 2)) -
+            ((v4a * w) / (x * z))), r2)
+
+        equation3 = sp.Eq(
+            (1 / (1-w**2)) * (((v1b / (x ** 2)) +
+            ((v2b * (1-w**2)) / (y ** 2))) +
+            (v3b / (z ** 2)) -
+            ((v4b * w) / (x * z))), r3)
+
+        equation4 = sp.Eq(
+            (1 / (1-w**2)) * (((v1c / (x ** 2)) +
+            ((v2c * (1-w**2)) / (y ** 2))) +
+            (v3c / (z ** 2)) -
+            ((v4c * w) / (x * z))), r4)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2, equation3, equation4), (w, x, y, z))
+        if len(solution) != 0:
+            a.append(float(solution[3][1]))
+            b.append(float(solution[3][2]))
+            c.append(float(solution[3][3]))
+            d.append(float(solution[3][0]))
+            media_a = media_a + solution[3][1]
+            media_b = media_b + solution[3][2]
+            media_c = media_c + solution[3][3]
+            media_d = media_d + solution[3][0]
+            # cont += 1
+            conta += 1
+
+            print("Solução do sistema de equações:")
+            print(solution)
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    media_a = media_a / conta
+    media_b = media_b / conta
+    media_c = media_c / conta
+    media_d = media_d / conta
+
+    angulo_beta = math.degrees(math.acos(media_d))
+
+    print("Monoclínico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "b" + str(i + 1) + ":" + str(b[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + " d " + str(i + 1) + ":" + str(d[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de b:  ", '{:.{}f}'.format(round((media_b), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(b)
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("angulo_alfa = angulo_gama = 90 graus")
+
+    print("Valor médio de angulo_beta:  ", '{:.{}f}'.format(round((angulo_beta), 6), 6), " angstons")
+
+    desvio = np.std(d)
+    angulo_beta_desvio = math.degrees(math.asin(desvio))
+    print("Desvio-padrão de angulo_beta: ", '{:.{}f}'.format(round((angulo_beta_desvio), 6), 6), " angstons")
+
+
+def triclinica():
+    S11 = []
+    S22 = []
+    S33 = []
+    S12 = []
+    S23 = []
+    S13 = []
+    p = 6
+
+    # Mg3(PO4)2 - fosfato de magnésio
+    picos = [22.17, 23.75, 27.69, 27.80, 28.03, 28.10, 28.93, 29.36, 29.99, 30.92, 31.05, 32.29, 32.62, 32.72]
+    h = [1, 0, 1, 1, 2, 1, 2, 2, 2, 2, 1, 0, 3, 1]
+    k = [0, 2, 0, 1, 0, -1, -2, 1, -2, 1, -2, 2, -2, 2]
+    l = [-2, -2, 2, 1, -2, -2, 2, -1, -1, -2, 3, 1, 0, 0]
+
+    conta = 1
+    media_S11 = float(0)
+    media_S22 = float(0)
+    media_S33 = float(0)
+    media_S12 = float(0)
+    media_S23 = float(0)
+    media_S13 = float(0)
+    a = float(0)
+    b = float(0)
+    c = float(0)
+    d = float(0)
+    e = float(0)
+    f = float(0)
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Triclínica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 10
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 6))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        angulo3 = combinacao[2]
+        angulo4 = combinacao[3]
+        angulo5 = combinacao[4]
+        angulo6 = combinacao[5]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(
+            picos[angulo3]) + " e " + str(picos[angulo4]) + " e " + str(picos[angulo5]) + " e " + str(picos[angulo6])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x, y, z, w, n, m
+        x, y, z, w, n, m = sp.symbols('x y z w n m')
+
+      # Definindo as equações
+
+        equation1 = sp.Eq(
+        (x*h[angulo1]**2 + y*k[angulo1]**2 + z*l[angulo1]**2 + 2*w*h[angulo1]*k[angulo1] + 2*n*k[angulo1]*l[angulo1] + 2*m*h[angulo1]*l[angulo1]), 1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq(
+        (x*h[angulo2]**2 + y*k[angulo2]**2 + z*l[angulo2]**2 + 2*w*h[angulo2]*k[angulo2] + 2*n*k[angulo2]*l[angulo2] + 2*m*h[angulo2]*l[angulo2]), 1 / (distancia[angulo2]) ** 2)
+
+        equation3 = sp.Eq(
+        (x*h[angulo3]**2 + y*k[angulo3]**2 + z*l[angulo3]**2 + 2*w*h[angulo3]*k[angulo3] + 2*n*k[angulo3]*l[angulo3] + 2*m*h[angulo3]*l[angulo3]), 1 / (distancia[angulo3]) ** 2)
+
+        equation4 = sp.Eq(
+        (x*h[angulo4]**2 + y*k[angulo4]**2 + z*l[angulo4]**2 + 2*w*h[angulo4]*k[angulo4] + 2*n*k[angulo4]*l[angulo4] + 2*m*h[angulo4]*l[angulo4]), 1 / (distancia[angulo4]) ** 2)
+
+        equation5 = sp.Eq(
+        (x*h[angulo5]**2 + y*k[angulo5]**2 + z*l[angulo5]**2 + 2*w*h[angulo5]*k[angulo5] + 2*n*k[angulo5]*l[angulo5] + 2*m*h[angulo5]*l[angulo5]), 1 / (distancia[angulo5]) ** 2)
+
+        equation6 = sp.Eq(
+        (x*h[angulo6]**2 + y*k[angulo6]**2 + z*l[angulo6]**2 + 2*w*h[angulo6]*k[angulo6] + 2*n*k[angulo6]*l[angulo6] + 2*m*h[angulo6]*l[angulo6]), 1 / (distancia[angulo6]) ** 2)
+
+        #Resolvendo as equações
+        solution = sp.solve((equation1, equation2, equation3, equation4, equation5, equation6), (x, y, z, w, n, m))
+        if len(solution) != 0:
+            S11.append(float(solution[x]))
+            S22.append(float(solution[y]))
+            S33.append(float(solution[z]))
+            S12.append(float(solution[w]))
+            S23.append(float(solution[n]))
+            S13.append(float(solution[m]))
+            media_S11 = media_S11 + solution[x]
+            media_S22 = media_S22 + solution[y]
+            media_S33 = media_S33 + solution[z]
+            media_S12 = media_S12 + solution[w]
+            media_S23 = media_S23 + solution[n]
+            media_S13 = media_S13 + solution[m]
+            # cont += 1
+            conta += 1
+
+            print("Solução do sistema de equações:")
+            print(solution)
+
+    print("Triclínico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print(f"  {angulo + 1}     {valor}          {round(distancia[angulo], 6):.6f}    {'             '} {h[angulo]} {k[angulo]} {l[angulo]}")
+
+    for i in range(len(S11)):
+        print(f"S11{i + 1}:{S11[i]} S22{i + 1}:{S22[i]} S33{i + 1}:{S33[i]} S12{i + 1}:{S12[i]} S23{i + 1}:{S23[i]} S13{i + 1}:{S13[i]}")
+
+    # Definindo as variáveis simbólicas r1, r2, r3
+    r1, r2, r3 = sp.symbols('r1 r2 r3')
+
+    # Razões constantes entre r1, r2 e r3
+    deg1 = float(input("Digite o ângulo alfa: "))
+    deg2 = float(input("Digite o ângulo beta: "))
+    deg3 = float(input("Digite o ângulo gama: "))
+    razao_r1_r2 = np.cos(np.radians(deg1)) / np.cos(np.radians(deg2))  # substituir com as razões corretas
+    razao_r2_r3 = np.cos(np.radians(deg2)) / np.cos(np.radians(deg3))  # substituir com as razões corretas
+
+    parametros = []
+    for i in range(len(S11)):
+        media_S11 = float(S11[i])
+        media_S22 = float(S22[i])
+        media_S33 = float(S33[i])
+        media_S12 = float(S12[i])
+        media_S23 = float(S23[i])
+        media_S13 = float(S13[i])
+
+        # Definindo as variáveis simbólicas r1, r2, r3
+        r1, r2, r3 = sp.symbols('r1 r2 r3')
+
+        # Definindo as equações para os parâmetros de rede
+        equation7 = sp.Eq(((1 - r1 ** 2) ** 0.5 / (1 - r3 ** 2) ** 0.5) * (r2 * r3 - r1) / (r1 * r2 - r3),
+                      (solution[n] / solution[w]) * (solution[x] / solution[z]) ** 0.5)
+        equation8 = sp.Eq(((1 - r1 ** 2) ** 0.5 / (1 - r2 ** 2) ** 0.5) * (r2 * r3 - r1) / (r3 * r1 - r2),
+                      (solution[n] / solution[m]) * (solution[x] / solution[y]) ** 0.5)
+        equation9 = sp.Eq(((1 - r2 ** 2) ** 0.5 / (1 - r3 ** 2) ** 0.5) * (r3 * r1 - r2) / (r1 * r2 - r3),
+                      (solution[m] / solution[w]) * (solution[y] / solution[z]) ** 0.5)
+
+        # Convertendo as equações para uma função lambda para uso com least_squares
+        f7 = sp.lambdify((r1, r2, r3), equation7.lhs - equation7.rhs, "numpy")
+        f8 = sp.lambdify((r1, r2, r3), equation8.lhs - equation8.rhs, "numpy")
+        f9 = sp.lambdify((r1, r2, r3), equation9.lhs - equation9.rhs, "numpy")
+
+        def equations(vars):
+            r1, r2, r3 = vars
+            return [f7(r1, r2, r3), f8(r1, r2, r3), f9(r1, r2, r3)]
+
+        # Função para ajustar os ângulos mantendo as razões constantes
+        def ajustar_angulo(vars):
+            angulo_alfa, angulo_beta = vars
+            r1 = np.cos(np.radians(angulo_alfa))
+            r2 = r1 / razao_r1_r2
+            r3 = r2 / razao_r2_r3
+            return [r1, r2, r3]
+
+        # Função objetivo para minimizar
+        def objective_function(angles):
+            r1, r2, r3 = ajustar_angulo(angles)
+            return np.sum(np.square(equations([r1, r2, r3])))
+
+        # Usando differential_evolution para encontrar os melhores ângulos iniciais
+        bounds = [(0, 180), (0, 180)]
+        result_angles = differential_evolution(objective_function, bounds)
+
+        # Ajustando os ângulos encontrados
+        r1, r2, r3 = ajustar_angulo(result_angles.x)
+
+        # Usando least_squares para refinar os valores
+        def refined_equations(vars):
+            return equations(vars)
+
+        initial_guess = [r1, r2, r3]
+        result = least_squares(refined_equations, initial_guess, bounds=(-1, 1))
+
+        print("Solução do sistema de equações:")
+        print("r1 =", result.x[0])
+        print("r2 =", result.x[1])
+        print("r3 =", result.x[2])
+
+        # Convertendo os resultados de volta para graus
+        angulo_alfa = float(np.degrees(np.arccos(result.x[0])))
+        angulo_beta = float(np.degrees(np.arccos(result.x[1])))
+        angulo_gama = float(np.degrees(np.arccos(result.x[2])))
+
+        J = float(1 - result.x[0] ** 2 - result.x[1] ** 2 - result.x[2] ** 2 + 2 * result.x[0] * result.x[1] * result.x[2])
+        a = float(((1 - result.x[0] ** 2) ** 0.5 / (solution[x] * J) ** 0.5))
+        b = float(((1 - result.x[1] ** 2) ** 0.5 / (solution[y] * J) ** 0.5))
+        c = float(((1 - result.x[2] ** 2) ** 0.5 / (solution[z] * J) ** 0.5))
+
+        parametros.append((a, b, c, angulo_alfa, angulo_beta, angulo_gama))
+
+    if parametros:
+        # Calculando média e desvio-padrão
+        parametros_np = np.array(parametros)
+        medias = np.mean(parametros_np, axis=0)
+        desvios = np.std(parametros_np, axis=0)
+
+        for i, (a, b, c, alfa, beta, gama) in enumerate(parametros):
+            print(f"Conjunto {i + 1}: a = {a}, b = {b}, c = {c}, alfa = {alfa}, beta = {beta}, gama = {gama}")
+
+        print("\nMédias dos parâmetros:")
+        print(f"a = {medias[0]}, b = {medias[1]}, c = {medias[2]}, alfa = {medias[3]}, beta = {medias[4]}, gama = {medias[5]}")
+
+        print("\nDesvios-padrão dos parâmetros:")
+        print(f"a = {desvios[0]}, b = {desvios[1]}, c = {desvios[2]}, alfa = {desvios[3]}, beta = {desvios[4]}, gama = {desvios[5]}")
+    else:
+        print("Nenhum parâmetro foi calculado.")
+
+print(
+    " 1- Cúbica\n 2- Tetragonal\n 3- Ortorrômbica\n 4- Hexagonal\n 5- Romboédrica\n 6- Monoclínica\n 7- Triclínica")
+opcao = int(input("Digite tipo de estrutura: "))
+
+if opcao == 1:
+    cubica()
+elif opcao == 2:
+    tetragonal()
+elif opcao == 3:
+    ortorrombica()
+elif opcao == 4:
+    hexagonal()
+elif opcao == 5:
+    romboedrica()
+elif opcao == 6:
+    monoclinica()
+elif opcao == 7:
+    triclinica()
+else:
+    print("Opção inválida. Por favor, escolha uma opção válida.")
