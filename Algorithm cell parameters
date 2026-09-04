@@ -627,7 +627,7 @@ def monoclinica():
     angulo_beta_desvio = math.degrees(math.asin(desvio))
     print("Desvio-padrão de angulo_beta: ", '{:.{}f}'.format(round((angulo_beta_desvio), 6), 6), " angstons")
 
-
+# Under development - to be implemented using linear reciprocal-metric tensors in future versions.
 
 print(
     " 1- Cúbica\n 2- Tetragonal\n 3- Ortorrômbica\n 4- Hexagonal\n 5- Romboédrica\n 6- Monoclínica")
