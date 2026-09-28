@@ -1,3 +1,37 @@
+# Deterministic Combinatorial Calculation of Lattice Parameters Using Python
+
+[![Paper DOI](https://shields.io)](https://doi.org)
+[![Python Version](https://shields.io)](https://python.org)
+[![License](https://shields.io)](https://creativecommons.org)
+
+This repository contains the official open-source Python implementation of the deterministic mathematical combinatorial framework designed to calculate initial unit-cell parameters directly from indexed powder X-ray diffraction (XRD) interplanar distances (d{hkl}). 
+
+By solving localized p times p systems of equations generated via the binomial coefficient (C{n,p}), this algorithm bypasses heavy global full-pattern profile fitting routines (such as Rietveld or Le Bail refinement) when immediate, transparent, and scriptable lattice metric screening is required.
+
+## Citation
+
+If you use this software, sample datasets, or the algorithmic framework in your research, please cite our official paper published in *Academia Materials Science*:
+
+### Standard Citation
+> Soares, J., & Soares, J. (2026). Deterministic combinatorial calculation of lattice parameters using Python. Academia Materials Science, v. 3, i. 3, 1-11. (https://doi.org/10.20935/AcadMatSci8544)
+
+### BibTeX Entry
+```bibtex
+@article{soares2026deterministic,
+  author    = {Soares, Jones and Soares, Jobson},
+  title     = {Deterministic combinatorial calculation of lattice parameters using Python},
+  journal   = {Academia Materials Science},
+  volume    = {3},
+  year      = {2026},
+  pages     = {AcadMatSci8544},
+  doi       = {10.20935/AcadMatSci8544},
+  url       = {https://doi.org}
+}
+
+
+
+
+
 Triclinic System Implementation via Linearized Reciprocal Metric Tensors
 
 Overview
