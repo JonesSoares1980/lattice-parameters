@@ -627,10 +627,158 @@ def monoclinica():
     angulo_beta_desvio = math.degrees(math.asin(desvio))
     print("Desvio-padrão de angulo_beta: ", '{:.{}f}'.format(round((angulo_beta_desvio), 6), 6), " angstons")
 
-# Triclinic system under development - to be implemented using linear reciprocal-metric tensors in future versions.
+def triclinica():
+    a = []
+    b = []
+    c = []
+    alpha_list = []
+    beta_list = []
+    gamma_list = []
+    p = 6
+
+    # Dados de Teste: Mg3(PO4)2 - Fosfato de Magnésio (Triclínico)
+    picos = [
+        10.96, 11.81, 11.82, 12.47, 12.50, 13.91, 14.35, 
+        18.12, 18.65, 18.84, 19.11, 19.98, 20.40, 20.92, 20.97
+    ]
+    h = [0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 2, 1]
+    k = [0, 1, 0, -1, 1, 0, -1, 0, -1, 1, 1, -2, 1, -1, 1]
+    l = [1, -1, 0, 0, 0, -1, 1, 1, -1, -1, -2, 1, 1, 0, 0]
+
+    conta = 0
+    media_a = float(0)
+    media_b = float(0)
+    media_c = float(0)
+    media_alpha = float(0)
+    media_beta = float(0)
+    media_gamma = float(0)
+
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1
+    tamanhoPicos = len(picos)
+    indices = list(range(tamanhoPicos))
+    
+    # Sistema triclínico requer p=6 picos independentes para fechar o sistema algébrico
+    combinacoes_indices = list(itertools.combinations(indices, 6))
+    
+    for combinacao in combinacoes_indices:
+        idx = list(combinacao)
+        
+        s_combina = f"{ctCombina}: picos {', '.join([str(picos[i]) for i in idx])}"
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas para os componentes do tensor métrico recíproco
+        # q11=a*^2, q22=b*^2, q33=c*^2, q12=a*b*cos(gamma*), q13=a*c*cos(beta*), q23=b*c*cos(alpha*)
+        q11, q22, q33, q12, q13, q23 = sp.symbols('q11 q22 q33 q12 q13 q23')
+
+        # Montando as 6 equações lineares baseadas na métrica recíproca triclínica
+        eqs = []
+        for i in idx:
+            expr = (h[i]**2)*q11 + (k[i]**2)*q22 + (l[i]**2)*q33 + 2*h[i]*k[i]*q12 + 2*h[i]*l[i]*q13 + 2*k[i]*l[i]*q23
+            eqs.append(sp.Eq(expr, 1 / (distancia[i]**2)))
+
+        # Resolvendo o sistema linear determinado
+        solution = sp.solve(tuple(eqs), (q11, q22, q33, q12, q13, q23))
+        
+        if len(solution) != 0 and all(k in solution for k in (q11, q22, q33, q12, q13, q23)):
+            try:
+                # Extraindo os valores numéricos das componentes recíprocas
+                val_q11 = float(solution[q11])
+                val_q22 = float(solution[q22])
+                val_q33 = float(solution[q33])
+                val_q12 = float(solution[q12])
+                val_q13 = float(solution[q13])
+                val_q23 = float(solution[q23])
+
+                # Construindo o tensor métrico recíproco (G*)
+                G_star = np.array([
+                    [val_q11, val_q12, val_q13],
+                    [val_q12, val_q22, val_q23],
+                    [val_q13, val_q23, val_q33]
+                ])
+
+                # O tensor métrico direto (G) é o inverso matemático do recíproco
+                G = np.linalg.inv(G_star)
+
+                # Condição física: os elementos da diagonal principal (métrica direta) devem ser positivos
+                if G[0,0] <= 0 or G[1,1] <= 0 or G[2,2] <= 0:
+                    continue
+
+                # Extraindo os comprimentos dos eixos diretos (a, b, c)
+                val_a = np.sqrt(G[0,0])
+                val_b = np.sqrt(G[1,1])
+                val_c = np.sqrt(G[2,2])
+
+                # Calculando os cossenos dos ângulos diretos
+                cos_alpha = G[1,2] / (val_b * val_c)
+                cos_beta  = G[0,2] / (val_a * val_c)
+                cos_gamma = G[0,1] / (val_a * val_b)
+
+                # Validação geométrica matemática do poliedro celular
+                if any(np.abs([cos_alpha, cos_beta, cos_gamma]) >= 1.0):
+                    continue
+
+                # Convertendo os ângulos para graus interaxiais diretos
+                val_alpha = np.degrees(np.arccos(cos_alpha))
+                val_beta  = np.degrees(np.arccos(cos_beta))
+                val_gamma = np.degrees(np.arccos(cos_gamma))
+
+                # Armazenando a solução convergida e estável
+                a.append(val_a)
+                b.append(val_b)
+                c.append(val_c)
+                alpha_list.append(val_alpha)
+                beta_list.append(val_beta)
+                gamma_list.append(val_gamma)
+
+                media_a += val_a
+                media_b += val_b
+                media_c += val_c
+                media_alpha += val_alpha
+                media_beta += val_beta
+                media_gamma += val_gamma
+                conta += 1
+
+                print("Solução convertida para parâmetros diretos com sucesso.")
+            except (EigenvalueError, np.linalg.LinAlgError):
+                # Filtra singularidades matriciais ou determinantes nulos
+                continue
+
+    if conta == 0:
+        print("Nenhuma combinação linear gerou uma matriz triclínica invertível válida.")
+        return
+
+    media_a /= conta
+    media_b /= conta
+    media_c /= conta
+    media_alpha /= conta
+    media_beta /= conta
+    media_gamma /= conta
+
+    print("\nTriclínico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+    for i in range(tamanhoPicos):
+        print(f"   {i+1}       {picos[i]}            {round(distancia[i], 6)}          {h[i]} {k[i]} {l[i]}")
+
+    print("\n--- VALORES MÉDIOS PARÂMETROS DIRETOS ---")
+    print("Valor médio de a:  ", '{:.{}f}'.format(round(media_a, 6), 6), " angstons")
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round(np.std(a), 6), 6), " angstons")
+    print("Valor médio de b:  ", '{:.{}f}'.format(round(media_b, 6), 6), " angstons")
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round(np.std(b), 6), 6), " angstons")
+    print("Valor médio de c:  ", '{:.{}f}'.format(round(media_c, 6), 6), " angstons")
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round(np.std(c), 6), 6), " angstons")
+    
+    print("Valor médio de alfa: ", '{:.{}f}'.format(round(media_alpha, 4), 4), " graus")
+    print("Desvio-padrão de alfa:", '{:.{}f}'.format(round(np.std(alpha_list), 4), 4), " graus")
+    print("Valor médio de beta:  ", '{:.{}f}'.format(round(media_beta, 4), 4), " graus")
+    print("Desvio-padrão de beta: ", '{:.{}f}'.format(round(np.std(beta_list), 4), 4), " graus")
+    print("Valor médio de gama:  ", '{:.{}f}'.format(round(media_gamma, 4), 4), " graus")
+    print("Desvio-padrão de gama: ", '{:.{}f}'.format(round(np.std(gamma_list), 4), 4), " graus")
 
 print(
-    " 1- Cúbica\n 2- Tetragonal\n 3- Ortorrômbica\n 4- Hexagonal\n 5- Romboédrica\n 6- Monoclínica")
+    " 1- Cúbica\n 2- Tetragonal\n 3- Ortorrômbica\n 4- Hexagonal\n 5- Romboédrica\n 6- Monoclínica"\n 7- Triclínica)
 opcao = int(input("Digite tipo de estrutura: "))
 
 if opcao == 1:
@@ -645,6 +793,8 @@ elif opcao == 5:
     romboedrica()
 elif opcao == 6:
     monoclinica()
+elif opcao == 7:
+    triclinica()
 else:
     print("Opção inválida. Por favor, escolha uma opção válida.")
 
