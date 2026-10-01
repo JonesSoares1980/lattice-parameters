@@ -1,7 +1,10 @@
 import math
 import scipy
+from scipy.linalg import solve
 from scipy.linalg import solve, lstsq
-from scipy.optimize import fsolve, least_squares, differential_evolution
+from scipy.optimize import fsolve
+from scipy.optimize import least_squares
+from scipy.optimize import least_squares, differential_evolution
 import numpy as np
 import sympy as sp
 import itertools
@@ -9,890 +12,1334 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 
-def select_csv_file():
+def selecionar_arquivo_csv():
     """
-    Opens a graphical file dialog window for the user to select any .csv file.
-    Returns the data matrix loaded via numpy and the detected delimiter.
+    Abre uma janela visual do Windows para o usuário selecionar qualquer arquivo .csv.
+    Retorna a matriz de dados carregada via numpy e as linhas processadas puras.
     """
+    # Inicializa o Tkinter de forma oculta (sem abrir uma janela vazia atrás)
     root = tk.Tk()
     root.withdraw()
-    root.attributes("-topmost", True)
+    root.attributes("-topmost", True)  # Força a janela a aparecer na frente de tudo
     
-    print("\n[Notice] A file dialog window has opened. Please select the diffraction .csv file...")
-    file_path = filedialog.askopenfilename(
-        title="Select Diffraction CSV File",
-        filetypes=[("CSV Files", "*.csv"), ("Text Files", "*.txt"), ("All Files", "*.*")]
+    print("\n[Aviso] Uma janela visual foi aberta. Selecione o arquivo .csv da estrutura desejada...")
+    caminho_arquivo = filedialog.askopenfilename(
+        title="Selecionar arquivo CSV de Difração",
+        filetypes=[("Arquivos CSV", "*.csv"), ("Arquivos de Texto", "*.txt"), ("Todos os arquivos", "*.*")]
     )
     
-    if not file_path:
-        print("[Error] No file was selected. Aborting execution.")
+    if not caminho_arquivo:
+        print("[Erro] Nenhum arquivo foi selecionado. Encerrando execução.")
         return None, None
         
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        # Identifica o delimitador automaticamente (; ou ,)
+        with open(caminho_arquivo, 'r', encoding='utf-8') as f:
             linhas = f.readlines()
-        delimiter = ';' if ';' in linhas[0] else ','
+        separador = ';' if ';' in linhas[0] else ','
         
-        processed_lines = [linhas[0]]
-        for line in lines[1:]:
-            if line.strip():
-                if delimiter == ';':
-                    line = line.replace(',', '.')
-                processed_lines.append(line)
+        # Tratamento de vírgula decimal (padrão brasileiro) se houver
+        linhas_processadas = [linhas[0]]
+        for linha in linhas[1:]:
+            if linha.strip():
+                if separador == ';':
+                    linha = linha.replace(',', '.')
+                linhas_processadas.append(linha)
                 
-        csv_data = np.genfromtxt(processed_lines, delimiter=delimiter, skip_header=1)
-        csv_data = csv_data[~np.isnan(csv_data[:, 3])]
-        csv_data = csv_data[csv_data[:, 3] > 0]
+        # Carrega a matriz de dados via numpy
+        dados_csv = np.genfromtxt(linhas_processadas, delimiter=separador, skip_header=1)
         
-        print(f"-> File loaded successfully: {os.path.basename(file_path)}")
-        return csv_data, delimiter
+        # Limpeza preventiva contra NaNs e garante 2-Theta (coluna 3) > 0
+        dados_csv = dados_csv[~np.isnan(dados_csv[:, 3])]
+        dados_csv = dados_csv[dados_csv[:, 3] > 0]
+        
+        print(f"-> Arquivo carregado com sucesso: {os.path.basename(caminho_arquivo)}")
+        return dados_csv, separador
         
     except Exception as e:
-        print(f"[Error] Failed to process the selected file: {e}")
+        print(f"[Erro] Falha ao processar o arquivo selecionado: {e}")
         return None, None
 
-def export_results_report(system_name, report_content):
+def exportar_relatorio_resultados(nome_sistema, texto_conteudo):
     """
-    Opens a file dialog for the user to save the terminal results
-    as a text file (.txt) in any directory on the computer.
+    Abre uma janela visual para o usuário salvar os resultados do Terminal
+    em um arquivo de texto (.txt) em qualquer diretório do computador.
     """
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
     
-    print(f"\n[Notice] Opening window to save the {system_name} system report...")
-    save_path = filedialog.asksaveasfilename(
-        title=f"Save Report - {system_name} System",
-        initialfile=f"Lattice_Report_{system_name}.txt",
-        filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
+    print(f"\n[Aviso] Abrindo janela para salvar o relatório do Sistema {nome_sistema}...")
+    caminho_salvamento = filedialog.asksaveasfilename(
+        title=f"Salvar Relatório - Sistema {nome_sistema}",
+        initialfile=f"Relatorio_Lattice_{nome_sistema}.txt",
+        filetypes=[("Arquivos de Texto", "*.txt"), ("Todos os arquivos", "*.*")],
         defaultextension=".txt"
     )
     
-    if save_path:
+    if caminho_salvamento:
         try:
-            with open(save_path, 'w', encoding='utf-8') as f:
-                f.write(report_content)
-            print(f"✅ [Success] Report successfully exported to:\n-> {save_path}\n")
+            with open(caminho_salvamento, 'w', encoding='utf-8') as f:
+                f.write(texto_conteudo)
+            print(f"✅ [Sucesso] Relatório exportado com sucesso em:\n-> {caminho_salvamento}\n")
         except Exception as e:
-            print(f"[Error] Failed to write the report file: {e}")
+            print(f"[Erro] Falha ao gravar o arquivo de relatório: {e}")
     else:
-        print("[Notice] Export canceled by the user. Data remains registered in the Terminal only.")
+        print("[Aviso] Exportação cancelada pelo usuário. Os dados ficaram registrados apenas no Terminal.")
 
-def print_angles_results(structure_name, peaks, d_values, wavelength, h, k, l, a_values, mean_a):
-    print(structure_name)
-    print("Peak |   2-Theta   |   Interplanar Spacing (d)   |    h k l   |    a    ")
-    index = 0
-    for peak in peaks:
-        print("  ", index + 1, "     ", peak, "          ", '{:.{}f}'.format(round((d_values[index]), 6), 6),
-              "    ", "             ", h[index], k[index], l[index], "    ", '{:.{}f}'.format(round(a_values[index], 6), 6))
-        index += 1
-    print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-    std_dev = np.std(a_values)
-    print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev), 6), 6), " Angstroms")
+def resultado_angulos(estrutura, picos, distancias, comp_de_onda, h, k, l, a, media_a):
+    print(estrutura)
+    print("Ângulo |   2-Theta   |   distância interplanar   |    h k l   |    a    ")
+    angulo = 0
+    for pico in picos:
+        print("  ", angulo, "     ", pico, "          ", '{:.{}f}'.format(round((distancias[angulo]), 6), 6),
+              "    ",
+              "             ", h[angulo],
+              k[angulo], l[angulo], "    ", '{:.{}f}'.format(round(a[angulo], 6), 6))
+        angulo += 1
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
 
-def get_indexed_distances(peaks):
-    d_values = []
-    wavelength = float(input("Wavelength (Lambda): "))
-    for i in range(len(peaks)):
-        peak_idx = i
-        value = peaks[peak_idx]
-        d_values.append(float(wavelength / (2.0 * math.sin(math.radians(value / 2.0)))))
-    return "Structure", d_values, wavelength
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
 
-def cubic():
+
+def angulos(nome_estrutura):
+    picos = []
+    h = []
+    k = []
+    l = []
+    distancia = []
+
+    # Comente todas as linhas abaixo para desativar a função antiga com segurança:
+    # n = int(input("Digite o número de picos: "))
+    # comp_de_onda = float(input("Comprimento de onda: "))
+    # for i in range(n):
+    #    #angulo = i
+    #    #valor = float(input("Digite o valor do ângulo: "))
+    #    distancia[angulo] = float(comp_de_onda / (2.0 * math.sin(math.radians(valor / 2.0))))
+    #    picos[angulo] = valor
+    #    h[angulo] = int(input("Digite o valor de h: "))
+    #    k[angulo] = int(input("Digite o valor de k: "))
+    #    l[angulo] = int(input("digite o valor de l: "))
+
+    #return nome_estrutura, picos, distancia, comp_de_onda, h, k, l
+
+
+def angulosTeste(picos):
+    # n = int(input("Digite o número de picos: "))
+    distancia = []
+    comp_de_onda = float(input("Comprimento de onda: "))
+    for i in range(len(picos)):
+        angulo = i
+        valor = picos[angulo]
+        distancia.append(float(comp_de_onda / (2.0 * math.sin(math.radians(valor / 2.0)))))
+
+    return "Estrutura", distancia, comp_de_onda
+
+
+def cubica():
     a = []
-    mean_val = float(0)
+    lista_volumes_cubo = []  # Nome exclusivo para NUNCA conflitar com floats
+    media = float(0)
+    media_volume = float(0)
 
-    csv_data, delimiter = select_csv_file()
-    if csv_data is None:
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
         return
 
-    h = csv_data[:, 0].astype(int).tolist()
-    k = csv_data[:, 1].astype(int).tolist()
-    l = csv_data[:, 2].astype(int).tolist()
-    peaks = csv_data[:, 3].tolist()
+    # Fatiamento automático de todas as linhas do arquivo
+    h = dados_csv[:, 0].astype(int).tolist()
+    k = dados_csv[:, 1].astype(int).tolist()
+    l = dados_csv[:, 2].astype(int).tolist()
+    picos = dados_csv[:, 3].tolist()
 
     conta = 0
-    structure_name, d_values, wavelength = get_indexed_distances(peaks)
-    for distance in d_values:
-        a.append(distance * (math.sqrt((h[conta] ** 2) + (k[conta] ** 2) + (l[conta] ** 2))))
-        mean_val = mean_val + a[conta]
+    # Retorno original em português do seu script
+    nome_estrutura, distancias, comp_de_onda = angulosTeste(picos)
+    
+    for distancia in distancias:
+        # 1. Calcula o parâmetro 'a' para cada pico
+        val_a = distancia * (math.sqrt((h[conta] ** 2) + (k[conta] ** 2) + (l[conta] ** 2)))
+        a.append(val_a)
+        
+        # 2. Calcula o volume da célula unitária cúbica (V = a³)
+        val_volume = val_a ** 3
+        lista_volumes_cubo.append(val_volume)
+        
+        # 3. Acumula os valores para as médias
+        media = media + val_a
+        media_volume = media_volume + val_volume
+        
+        # INCREMENTA APENAS UMA VEZ POR LAÇO!
         conta += 1
 
-    mean_val = mean_val / conta
-    print(mean_val)
-    std_dev = np.std(a)
-    print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev), 6), 6), " Angstroms")
-    print_angles_results(structure_name, peaks, d_values, wavelength, h, k, l, a, mean_val)
-    print("alpha = beta = gamma = 90 degrees")
+    # Cálculos estatísticos finais com base no número real de picos processados
+    media = media / conta
+    media_volume = media_volume / conta
+    
+    print("\n=== RESULTADOS NO TERMINAL ===")
+    print(f"Média de a: {media:.6f} Å")
+    print(f"Média do Volume: {media_volume:.6f} Å³")
+    
+    desvio = np.std(a)
+    desvio_volume = np.std(lista_volumes_cubo)  # Agora calcula perfeitamente sobre a lista
+    
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstrons")
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstrons³")
+    
+    # Imprime a tabela de ângulos na tela
+    resultado_angulos(nome_estrutura, picos, distancias, comp_de_onda, h, k, l, a, media)
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
 
-    report_content = (
-        f"=== LATTICE PARAMETERS REPORT - CUBIC SYSTEM ===\n"
-        f"Mean value of a: {mean_val:.6f} Å\n"
-        f"Standard deviation of a: {std_dev:.6f} Å\n"
-        f"Interaxial Angles: alpha = beta = gamma = 90.0°\n"
+    # Grava o relatório final no arquivo .txt externo
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA CÚBICO ===\n"
+        f"Data do Cálculo: 2026\n"
+        f"Valor médio de a: {media:.6f} Å (Desvio-padrão: {desvio:.6f} Å)\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+        f"Ângulos Interaxiais: alpha = beta = gamma = 90.0°\n"
     )
-    export_results_report("Cubic", report_content)
+    exportar_relatorio_resultados("Cubico", conteudo_txt)
 
 def tetragonal():
     a = []
     c = []
+    lista_volumes_tetra = []  # Nome exclusivo para evitar conflito com variáveis float
     p = 2
 
-    csv_data, delimiter = select_csv_file()
-    if csv_data is None:
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
         return
 
-    h = csv_data[:, 0].astype(int).tolist()
-    k = csv_data[:, 1].astype(int).tolist()
-    l = csv_data[:, 2].astype(int).tolist()
-    peaks = csv_data[:, 3].tolist()
+    h = dados_csv[:, 0].astype(int).tolist()
+    k = dados_csv[:, 1].astype(int).tolist()
+    l = dados_csv[:, 2].astype(int).tolist()
+    picos = dados_csv[:, 3].tolist()
 
+    # cont = 1
     conta = 0
-    mean_a = float(0)
-    mean_c = float(0)
+    media_a = float(0)
+    media_c = float(0)
+    media_volume = float(0)  # Inicialização da média do volume
 
-    structure_name, d_values, wavelength = get_indexed_distances(peaks)
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Tetragonal")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
 
-    ct_comb = 1
-    total_peaks = len(peaks)
-    indices = list(range(total_peaks))
-    combinations_indices = list(itertools.combinations(indices, 2))
-    for combination in combinations_indices:
-        angle1 = combination[0]
-        angle2 = combination[1]
-        print(f"Combination {ct_comb}: {peaks[angle1]} and {peaks[angle2]}")
-        ct_comb += 1
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
 
+        # Definindo as variáveis simbólicas x e y
         x, y = sp.symbols('x y')
 
-        equation1 = sp.Eq((((h[angle1]) ** 2 + (k[angle1] ** 2)) / (x ** 2)) + ((l[angle1] ** 2) / (y ** 2)), 1 / (d_values[angle1]) ** 2)
-        equation2 = sp.Eq((((h[angle2]) ** 2 + (k[angle2] ** 2)) / (x ** 2)) + ((l[angle2] ** 2) / (y ** 2)), 1 / (d_values[angle2]) ** 2)
+        # Definindo as equações
+        equation1 = sp.Eq((((h[angulo1]) ** 2 + (k[angulo1] ** 2)) / (x ** 2)) + ((l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
 
+        equation2 = sp.Eq(
+            (((h[angulo2]) ** 2 + (k[angulo2] ** 2)) / (x ** 2)) + ((l[angulo2] ** 2) / (y ** 2)),
+            1 / (distancia[angulo2]) ** 2)
+
+        # Resolvendo o sistema de equações
         solution = sp.solve((equation1, equation2), (x, y))
         if len(solution) != 0:
-            a.append(float(solution[3][0]))
-            c.append(float(solution[3][1]))
-            mean_a = mean_a + solution[3][0]
-            mean_c = mean_c + solution[3][1]
+            val_a = float(solution[3][0])
+            val_c = float(solution[3][1])
+            
+            a.append(val_a)
+            c.append(val_c)
+            
+            # Cálculo do volume da célula unitária tetragonal (V = a² * c)
+            val_volume = (val_a ** 2) * val_c
+            lista_volumes_tetra.append(val_volume)
+            
+            media_a = media_a + val_a
+            media_c = media_c + val_c
+            media_volume = media_volume + val_volume
+            # cont += 1
             conta += 1
 
-        print("Equation system solution:")
+        print("Solução do sistema de equações:")
         print(solution)
 
-    mean_a = mean_a / conta
-    mean_c = mean_c / conta
+    # Adicionado filtro de segurança caso nenhuma combinação convirja
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação tetragonal convergiu.")
+        return
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+    media_a = media_a / conta
+    media_c = media_c / conta
+    media_volume = media_volume / conta  # Cálculo da média do volume
 
     print("Tetragonal")
-    print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-    for i in range(total_peaks):
-        print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
 
-    print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-    std_dev_a = np.std(a)
-    print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev_a), 6), 6), " Angstroms")
-    print("Mean value of c:  ", '{:.{}f}'.format(round((mean_c), 6), 6), " Angstroms")
-    std_dev_c = np.std(c)
-    print("Standard deviation of c: ", '{:.{}f}'.format(round((std_dev_c), 6), 6), " Angstroms")
-    print("alpha = beta = gamma = 90 degrees")
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
 
-    report_content = (
-        f"=== LATTICE PARAMETERS REPORT - TETRAGONAL SYSTEM ===\n"
-        f"Mean value of a: {mean_a:.6f} Å (Std Dev: {std_dev_a:.6f} Å)\n"
-        f"Mean value of c: {mean_c:.6f} Å (Std Dev: {std_dev_c:.6f} Å)\n"
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + "  V" + str(i + 1) + ":" + str(lista_volumes_tetra[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desmio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desmio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio_c = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio_c), 6), 6), " angstons")
+    
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round((media_volume), 6), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_tetra)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstons³")
+    
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
+
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA TETRAGONAL ===\n"
+        f"Valor médio de a: {media_a:.6f} Å (Desvio-padrão: {np.std(a):.6f} Å)\n"
+        f"Valor médio de c: {media_c:.6f} Å (Desvio-padrão: {np.std(c):.6f} Å)\n"
         f"Interaxial Angles: alpha = beta = gamma = 90.0°\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
     )
-    export_results_report("Tetragonal", report_content)
+    exportar_relatorio_resultados("Tetragonal", conteudo_txt)
 
-def orthorhombic():
+def ortorrombica():
     a = []
     b = []
     c = []
+    lista_volumes_orto = []  # Nome exclusivo para evitar conflitos de variáveis
     p = 3
 
-    csv_data, delimiter = select_csv_file()
-    if csv_data is None:
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
         return
 
-    h = csv_data[:, 0].astype(int).tolist()
-    k = csv_data[:, 1].astype(int).tolist()
-    l = csv_data[:, 2].astype(int).tolist()
-    peaks = csv_data[:, 3].tolist()
+    h = dados_csv[:, 0].astype(int).tolist()
+    k = dados_csv[:, 1].astype(int).tolist()
+    l = dados_csv[:, 2].astype(int).tolist()
+    picos = dados_csv[:, 3].tolist()
 
+    # cont = 1
     conta = 0
-    mean_a = float(0)
-    mean_b = float(0)
-    mean_c = float(0)
+    media_a = float(0)
+    media_b = float(0)
+    media_c = float(0)
+    media_volume = float(0)  # Inicialização da média do volume
 
-    structure_name, d_values, wavelength = get_indexed_distances(peaks)
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Ortorrômbica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
 
-    ct_comb = 1
-    total_peaks = len(peaks)
-    indices = list(range(total_peaks))
-    combinations_indices = list(itertools.combinations(indices, 3))
-    for combination in combinations_indices:
-        angle1 = combination[0]
-        angle2 = combination[1]
-        angle3 = combination[2]
-        print(f"Combination {ct_comb}: {peaks[angle1]} and {peaks[angle2]} and {peaks[angle3]}")
-        ct_comb += 1
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 10
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 3))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        angulo3 = combinacao[2]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(
+            picos[angulo3])
+        ctCombina += 1
+        print(s_combina)
 
+        # Definindo as variáveis simbólicas x, y e z
         x, y, z = sp.symbols('x y z')
 
-        equation1 = sp.Eq(((h[angle1]) ** 2 / (x ** 2)) + ((k[angle1] ** 2) / (y ** 2)) + ((l[angle1] ** 2) / (z ** 2)), 1 / (d_values[angle1]) ** 2)
-        equation2 = sp.Eq(((h[angle2]) ** 2 / (x ** 2)) + ((k[angle2] ** 2) / (y ** 2)) + ((l[angle2] ** 2) / (z ** 2)), 1 / (d_values[angle2]) ** 2)
-        equation3 = sp.Eq(((h[angle3]) ** 2 / (x ** 2)) + ((k[angle3] ** 2) / (y ** 2)) + ((l[angle3] ** 2) / (z ** 2)), 1 / (d_values[angle3]) ** 2)
+        # Definindo as equações
+        equation1 = sp.Eq(
+            ((h[angulo1]) ** 2 / (x ** 2)) + ((k[angulo1] ** 2) / (y ** 2)) + ((l[angulo1] ** 2) / (z ** 2)),
+            1 / (distancia[angulo1]) ** 2)
 
+        equation2 = sp.Eq(
+            ((h[angulo2]) ** 2 / (x ** 2)) + ((k[angulo2] ** 2) / (y ** 2)) + ((l[angulo2] ** 2) / (z ** 2)),
+            1 / (distancia[angulo2]) ** 2)
+
+        equation3 = sp.Eq(
+            ((h[angulo3]) ** 2 / (x ** 2)) + ((k[angulo3] ** 2) / (y ** 2)) + ((l[angulo3] ** 2) / (z ** 2)),
+            1 / (distancia[angulo3]) ** 2)
+
+        # Resolvendo o sistema de equações
         solution = sp.solve((equation1, equation2, equation3), (x, y, z))
         if len(solution) != 0:
-            a.append(float(solution[7][1]))
-            b.append(float(solution[7][2]))
-            c.append(float(solution[7][0]))
-            mean_a = mean_a + solution[7][1]
-            mean_b = mean_b + solution[7][2]
-            mean_c = mean_c + solution[7][0]
+            val_a = float(solution[7][1])
+            val_b = float(solution[7][2])
+            val_c = float(solution[7][0])
+            
+            a.append(val_a)
+            b.append(val_b)
+            c.append(val_c)
+            
+            # Cálculo do volume da célula unitária ortorrômbica (V = a * b * c)
+            val_volume = val_a * val_b * val_c
+            lista_volumes_orto.append(val_volume)
+            
+            media_a = media_a + val_a
+            media_b = media_b + val_b
+            media_c = media_c + val_c
+            media_volume = media_volume + val_volume
+            # cont += 1
             conta += 1
 
-        print("Equation system solution:")
+        print("Solução do sistema de equações:")
         print(solution)
 
-    mean_a = mean_a / conta
-    mean_b = mean_b / conta
-    mean_c = mean_c / conta
+    # Adicionado filtro de segurança caso nenhuma combinação convirja
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação ortorrômbica convergiu.")
+        return
 
-    print("Orthorhombic")
-    print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-    for i in range(total_peaks):
-        print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
 
-print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-std_dev_a = np.std(a)
-print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev_a), 6), 6), " Angstroms")
-print("Mean value of b:  ", '{:.{}f}'.format(round((mean_b), 6), 6), " Angstroms")
-std_dev_b = np.std(b)
-print("Standard deviation of b: ", '{:.{}f}'.format(round((std_dev_b), 6), 6), " Angstroms")
-print("Mean value of c:  ", '{:.{}f}'.format(round((mean_c), 6), 6), " Angstroms")
-std_dev_c = np.std(c)
-print("Standard deviation of c: ", '{:.{}f}'.format(round((std_dev_c), 6), 6), " Angstroms")
-print("alpha = beta = gamma = 90 degrees")
-report_content = (
+    media_a = media_a / conta
+    media_b = media_b / conta
+    media_c = media_c / conta
+    media_volume = media_volume / conta  # Cálculo da média do volume
 
-f"=== LATTICE PARAMETERS REPORT - ORTHORHOMBIC SYSTEM ===\n"
-f"Mean value of a: {mean_a:.6f} Å (Std Dev: {std_dev_a:.6f} Å)\n"
-f"Mean value of b: {mean_b:.6f} Å (Std Dev: {std_dev_b:.6f} Å)\n"
-f"Mean value of c: {mean_c:.6f} Å (Std Dev: {std_dev_c:.6f} Å)\n"
-f"Interaxial Angles: alpha = beta = gamma = 90.0°\n"
-)
-export_results_report("Orthorhombic", report_content)
+    print("Ortorrômbico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "b" + str(i + 1) + ":" + str(b[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + "  V" + str(i + 1) + ":" + str(lista_volumes_orto[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio_a = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio_a), 6), 6), " angstons")
+
+    print("Valor médio de b:  ", '{:.{}f}'.format(round((media_b), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio_b = np.std(b)
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round((desvio_b), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio_c = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio_c), 6), 6), " angstons")
+    
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round((media_volume), 6), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_orto)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstons³")
+    
+    print("angulo_alfa = angulo_beta = angulo_gama = 90 graus")
+
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA ORTORRÔMBICO ===\n"
+        f"Valor médio de a: {media_a:.6f} Å (Desvio-padrão: {desvio_a:.6f} Å)\n"
+        f"Valor médio de b: {media_b:.6f} Å (Desvio-padrão: {desvio_b:.6f} Å)\n"
+        f"Valor médio de c: {media_c:.6f} Å (Desvio-padrão: {desvio_c:.6f} Å)\n"
+        f"Interaxial Angles: alpha = beta = gamma = 90.0°\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+    )
+    exportar_relatorio_resultados("Ortorrombico", conteudo_txt)
 
 def hexagonal():
-a = []
-c = []
-p = 2
+    a = []
+    c = []
+    lista_volumes_hexa = []  # Nome exclusivo para evitar conflito com variáveis float
+    p = 2
 
-csv_data, delimiter = select_csv_file()
-if csv_data is None:
-return
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
+        return
 
-h = csv_data[:, 0].astype(int).tolist()
-k = csv_data[:, 1].astype(int).tolist()
-l = csv_data[:, 2].astype(int).tolist()
-peaks = csv_data[:, 3].tolist()
-conta = 0
-mean_a = float(0)
-mean_c = float(0)
+    h = dados_csv[:, 0].astype(int).tolist()
+    k = dados_csv[:, 1].astype(int).tolist()
+    l = dados_csv[:, 2].astype(int).tolist()
+    picos = dados_csv[:, 3].tolist()
 
-structure_name, d_values, wavelength = get_indexed_distances(peaks)
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_c = float(0)
+    media_volume = float(0)  # Inicialização da média do volume
 
-ct_comb = 1
-total_peaks = len(peaks)
-indices = list(range(total_peaks))
-combinations_indices = list(itertools.combinations(indices, 2))
-for combination in combinations_indices:
-angle1 = combination[0]
-angle2 = combination[1]
-print(f"Combination {ct_comb}: {peaks[angle1]} and {peaks[angle2]}")
-ct_comb += 1
-x, y = sp.symbols('x y')
-equation1 = sp.Eq((4 / 3) * (((h[angle1]) ** 2 + (h[angle1] * k[angle1]) + (k[angle1] ** 2)) / (x ** 2)) + ((l[angle1] ** 2) / (y ** 2)), 1 / (d_values[angle1]) ** 2)
-equation2 = sp.Eq((4 / 3) * (((h[angle2]) ** 2 + (h[angle2] * k[angle2]) + (k[angle2] ** 2)) / (x ** 2)) + ((l[angle2] ** 2) / (y ** 2)), 1 / (d_values[angle2]) ** 2)
-solution = sp.solve((equation1, equation2), (x, y))
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Hexagonal")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
 
-if len(solution) != 0:
-a.append(float(solution[3][0]))
-c.append(float(solution[3][1]))
-mean_a = mean_a + solution[3][0]
-mean_c = mean_c + solution[3][1]
-conta += 1
-print("Equation system solution:")
-print(solution)
-mean_a = mean_a / conta
-mean_c = mean_c / conta
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
 
-print("Hexagonal")
-print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-for i in range(total_peaks):
-print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
-print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-std_dev_a = np.std(a)
-print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev_a), 6), 6), " Angstroms")
-print("Mean value of c:  ", '{:.{}f}'.format(round((mean_c), 6), 6), " Angstroms")
-std_dev_c = np.std(c)
-print("Standard deviation of c: ", '{:.{}f}'.format(round((std_dev_c), 6), 6), " Angstroms")
-print("alpha = beta = 90 degrees, gamma = 120 degrees")
-report_content = (
+        # Definindo as variáveis simbólicas x e y
+        x, y = sp.symbols('x y')
 
-f"=== LATTICE PARAMETERS REPORT - HEXAGONAL SYSTEM ===\n"
-f"Mean value of a: {mean_a:.6f} Å (Std Dev: {std_dev_a:.6f} Å)\n"
-f"Mean value of c: {mean_c:.6f} Å (Std Dev: {std_dev_c:.6f} Å)\n"
-f"Interaxial Angles: alpha = beta = 90.0°, gamma = 120.0°\n"
-)
-export_results_report("Hexagonal", report_content)
+        # Definindo as equações
+        equation1 = sp.Eq((4 / 3) * (((h[angulo1]) ** 2 + (h[angulo1] * k[angulo1]) + (k[angulo1] ** 2)) / (x ** 2)) + (
+                    (l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
 
-def rhombohedral():
-a = []
-c = []
-p = 2
-aR = []
-alpha_angle = []
+        equation2 = sp.Eq((4 / 3) * (((h[angulo2]) ** 2 + (h[angulo2] * k[angulo2]) + (k[angulo2] ** 2)) / (x ** 2)) + (
+                    (l[angulo2] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo2]) ** 2)
 
-csv_data, delimiter = select_csv_file()
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        if len(solution) != 0:
+            val_a = float(solution[3][0])
+            val_c = float(solution[3][1])
+            
+            a.append(val_a)
+            c.append(val_c)
+            
+            # Cálculo do volume da célula unitária hexagonal (V = a² * c * sen(120°))
+            # sen(120°) é igual a sqrt(3)/2
+            val_volume = (math.sqrt(3) / 2.0) * (val_a ** 2) * val_c
+            lista_volumes_hexa.append(val_volume)
+            
+            media_a = media_a + val_a
+            media_c = media_c + val_c
+            media_volume = media_volume + val_volume
+            # cont += 1
+            conta += 1
 
-if csv_data is None:
-return
+        print("Solução do sistema de equações:")
+        print(solution)
 
-h = csv_data[:, 0].astype(int).tolist()
-k = csv_data[:, 1].astype(int).tolist()
-l = csv_data[:, 2].astype(int).tolist()
-peaks = csv_data[:, 3].tolist()
+    # Adicionado filtro de segurança caso nenhuma combinação convirja
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação hexagonal convergiu.")
+        return
 
-conta = 0
-mean_a = float(0)
-mean_c = float(0)
-structure_name, d_values, wavelength = get_indexed_distances(peaks)
-ct_comb = 1
-total_peaks = len(peaks)
-indices = list(range(total_peaks))
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
 
-combinations_indices = list(itertools.combinations(indices, 2))
-for combination in combinations_indices:
-angle1 = combination[0]
-angle2 = combination[1]
-print(f"Combination {ct_comb}: {peaks[angle1]} and {peaks[angle2]}")
-ct_comb += 1
-x, y = sp.symbols('x y')
-equation1 = sp.Eq((4 / 3) * (((h[angle1]) ** 2 + (h[angle1] * k[angle1]) + (k[angle1] ** 2)) / (x ** 2)) + ((l[angle1] ** 2) / (y ** 2)), 1 / (d_values[angle1]) ** 2)
-equation2 = sp.Eq((4 / 3) * (((h[angle2]) ** 2 + (h[angle2] * k[angle2]) + (k[angle2] ** 2)) / (x ** 2)) + ((l[angle2] ** 2) / (y ** 2)), 1 / (d_values[angle2]) ** 2)
-solution = sp.solve((equation1, equation2), (x, y))
-if len(solution) != 0:
-try:
-if isinstance(solution, list) and len(solution) > 0:
-val_a = float(solution[-1][0])
-val_c = float(solution[-1][1])
-else:
-val_a = float(solution[x])
-val_c = float(solution[y])
-if val_a > 0 and val_c > 0:
-a.append(val_a)
-c.append(val_c)
-mean_a = mean_a + val_a
-mean_c = mean_c + val_c
-conta += 1
-except (IndexError, TypeError, KeyError):
-continue
+    media_a = media_a / conta
+    media_c = media_c / conta
+    media_volume = media_volume / conta  # Cálculo da média do volume
 
-print("Equation system solution:")
-print(solution)
-mean_a = mean_a / conta
-mean_c = mean_c / conta
+    print("Hexagonal")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
 
-print("Rhombohedral")
-print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-for i in range(total_peaks):
-print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
-print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-std_dev_a = np.std(a)
-print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev_a), 6), 6), " Angstroms")
-print("Mean value of c:  ", '{:.{}f}'.format(round((mean_c), 6), 6), " Angstroms")
-std_dev_c = np.std(c)
-print("Standard deviation of c: ", '{:.{}f}'.format(round((std_dev_c), 6), 6), " Angstroms")
-print("alpha = beta = 90 degrees, gamma = 120 degrees")
-aR = (1/3)(3(mean_a)**2+(mean_c)**2)**0.5
-print("Mean value of aR: ", '{:.{}f}'.format(round((aR), 6), 6), " Angstroms")
-std_dev_aR = (1/3)(3(np.std(a))**2+(np.std(c))**2)**0.5
-print("Standard deviation of aR: ", '{:.{}f}'.format(round((std_dev_aR), 6), 6), " Angstroms")
-mean_alpha = 2math.degrees(math.asin(3/(2(3+(mean_c/mean_a)**2)**0.5)))
-print("Mean value of alpha: ", '{:.{}f}'.format(round((mean_alpha), 6), 6), " degrees")
-sin_alpha_div_2_mean = (3/(2*(3+np.std(c)/np.std(a))**2))
-std_dev_alpha = 2*math.degrees(math.asin(sin_alpha_div_2_mean))
-print("Standard deviation of alpha: ", '{:.{}f}'.format(round((std_dev_alpha), 6), 6), " degrees")
-report_content = (
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
 
-f"=== LATTICE PARAMETERS REPORT - RHOMBOHEDRAL SYSTEM ===\n"
-f"Hexagonal Description:\n"
-f"  a = {mean_a:.6f} Å (Std Dev: {std_dev_a:.6f} Å)\n"
-f"  c = {mean_c:.6f} Å (Std Dev: {std_dev_c:.6f} Å)\n"
-f"Rhombohedral Equivalent Description:\n"
-f"  aR = {aR:.6f} Å (Std Dev: {std_dev_aR:.6f} Å)\n"
-f"  alpha = {mean_alpha:.4f}° (Std Dev: {std_dev_alpha:.4f}°)\n"
-)
-export_results_report("Rhombohedral", report_content)
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + "  V" + str(i + 1) + ":" + str(lista_volumes_hexa[i]))
 
-def monoclinic():
-a = []
-b = []
-c = []
-d = []
-p = 4
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
 
-mean_beta = float(0)
-std_dev_beta = float(0)
-csv_data, delimiter = select_csv_file()
-if csv_data is None:
-return
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio_c = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio_c), 6), 6), " angstons")
+    
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round((media_volume), 6), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_hexa)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstons³")
+    
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Hexagonal")
+    print("angulo_alfa = angulo_beta = 90 graus")
+    print("angulo_gama = 120 graus")
 
-h = []
-k = []
-l = []
-peaks = []
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA HEXAGONAL ===\n"
+        f"Valor médio de a: {media_a:.6f} Å (Desvio-padrão: {np.std(a):.6f} Å)\n"
+        f"Valor médio de c: {media_c:.6f} Å (Desvio-padrão: {np.std(c):.6f} Å)\n"
+        f"Interaxial Angles: alpha = beta = 90.0°, gamma = 120.0°\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+    )
+    exportar_relatorio_resultados("Hexagonal", conteudo_txt)
 
-try:
-print(f"\nThe file loaded a total of {csv_data.shape[0]} valid peaks.")
-print("Filtering Options:\n [1] Automatically select the most intense peaks\n [2] Manually select by Miller indices (h k l)")
+def romboedrica():
+    a = []
+    c = []
+    lista_volumes_rombo = []  # Nome exclusivo para evitar conflito com variáveis float
+    p = 2
+
+    aR = []
+    angulo_alfa = []
+
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
+        return
+
+    h = dados_csv[:, 0].astype(int).tolist()
+    k = dados_csv[:, 1].astype(int).tolist()
+    l = dados_csv[:, 2].astype(int).tolist()
+    picos = dados_csv[:, 3].tolist()
+
+    # cont = 1
+    conta = 0
+    media_a = float(0)
+    media_c = float(0)
+    media_volume = float(0)  # Inicialização da média do volume
+
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Romboédrica")
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1;
+    tamanhoPicos = len(picos)
+    # tamanhoPicos = 9
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 2))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x e y
+        x, y = sp.symbols('x y')
+
+        # Definindo as equações
+        equation1 = sp.Eq((4 / 3) * (((h[angulo1]) ** 2 + (h[angulo1] * k[angulo1]) + (k[angulo1] ** 2)) / (x ** 2)) + (
+                (l[angulo1] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo1]) ** 2)
+
+        equation2 = sp.Eq((4 / 3) * (((h[angulo2]) ** 2 + (h[angulo2] * k[angulo2]) + (k[angulo2] ** 2)) / (x ** 2)) + (
+                (l[angulo2] ** 2) / (y ** 2)),
+                          1 / (distancia[angulo2]) ** 2)
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2), (x, y))
+        
+        # --- NOVO BLOCO SEGURO DE EXTRAÇÃO DE DADOS ---
+        if len(solution) != 0:
+            try:
+                # Se a solução for uma lista de tuplas (como aconteceu no seu terminal)
+                if isinstance(solution, list) and len(solution) > 0:
+                    # Pegamos a última solução válida da lista (índice -1)
+                    val_a = float(solution[-1][0])
+                    val_c = float(solution[-1][1])
+                else:
+                    # Caso venha no formato de dicionário clássico
+                    val_a = float(solution[x])
+                    val_c = float(solution[y])
+                
+                # Filtro físico obrigatório: os parâmetros precisam ser reais e positivos
+                if val_a > 0 and val_c > 0:
+                    a.append(val_a)
+                    c.append(val_c)
+                    
+                    # Cálculo do volume celular (parametrizado pela célula hexagonal de referência)
+                    val_volume = (math.sqrt(3) / 2.0) * (val_a ** 2) * val_c
+                    lista_volumes_rombo.append(val_volume)
+                    
+                    media_a = media_a + val_a
+                    media_c = media_c + val_c
+                    media_volume = media_volume + val_volume
+                    conta += 1
+                    
+            except (IndexError, TypeError, KeyError):
+                # Se a combinação gerar valores complexos ou formatos inválidos, pula para a próxima
+                continue
+        # -----------------------------------------------
+
+        print("Solução do sistema de equações:")
+        print(solution)
+
+    # Adicionado filtro de segurança caso nenhuma combinação convirja
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação romboédrica convergiu.")
+        return
+
+    # for i in range(len(a)):
+    #     print("a" + str(i) + ":" + str(a[i]) + "a" + str(i) + ":" + str(a[i]) + "  c" + str(i) + ":" + str(c[i]))
+
+    media_a = media_a / conta
+    media_c = media_c / conta
+    media_volume = media_volume / conta  # Cálculo da média do volume
+
+    print("Romboédrico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + "  V" + str(i + 1) + ":" + str(lista_volumes_rombo[i]))
+
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    # valores = list(a.values())
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    # nome_estrutura, picos, distancia, comp_de_onda, h, k, l = angulos("Estrutura Romboédrica")
+    print("angulo_alfa = angulo_beta = 90 graus")
+    print("angulo_gama = 120 graus")
+
+    aR = (1/3)*(3*(media_a)**2+(media_c)**2)**0.5
+    print("Valor médio de aR: ", '{:.{}f}'.format(round((aR), 6), 6), " angstrons")
+    desvio_aR = (1/3)*(3*(np.std(a))**2+(np.std(c))**2)**0.5
+    print("Desvio-padrão de aR: ", '{:.{}f}'.format(round((desvio_aR), 6), 6), " angstons")
+
+    angulo_alfa = 2*math.degrees(math.asin(3/(2*(3+(media_c/media_a)**2)**0.5)))
+    print("Valor médio de angulo_alfa: ", '{:.{}f}'.format(round((angulo_alfa), 6), 6), " graus")
+
+    sen_alfa_por_2_medio = (3/(2*(3+np.std(c)/np.std(a))**2))
+    desvio_padrao_alfa = 2*math.degrees(math.asin(sen_alfa_por_2_medio))
+    print("Devio-padrão do ângulo alfa: ", '{:.{}f}'.format(round((desvio_padrao_alfa), 6), 6), " graus")
+
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round((media_volume), 6), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_rombo)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstons³")
+
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA ROMBOÉDRICO ===\n"
+        f"Descrição Hexagonal:\n"
+        f"  a = {media_a:.6f} Å (Desvio-padrão: {np.std(a):.6f} Å)\n"
+        f"  c = {media_c:.6f} Å (Desvio-padrão: {np.std(c):.6f} Å)\n"
+        f"Descrição Romboédrica Equivalente:\n"
+        f"  aR = {aR:.6f} Å (Desvio-padrão: {desvio_aR:.6f} Å)\n"
+        f"  alpha = {angulo_alfa:.4f}° (Desvio-padrão: {desvio_padrao_alfa:.4f}°)\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+    )
+    exportar_relatorio_resultados("Romboedrico", conteudo_txt)
+
+def monoclinica():
+    a = []
+    b = []
+    c = []
+    d = []
+    lista_volumes_mono = []  # Nome exclusivo em português para evitar conflitos de escopo
+    p = 4
+
+    angulo_beta = float(0)
+    angulo_beta_desvio = float(0)
+
+    # 1. Abertura visual dinâmica global (Retorna os dados limpos da planilha)
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
+        return
+
+    # ==================================================================
+    # DECLARAÇÃO ANTECIPADA DAS VARIÁVEIS
+    # ==================================================================
+    h = []
+    k = []
+    l = []
+    picos = []
+    # ==================================================================
+
+    try:
+        # 2. SELEÇÃO DE MODOS: AUTOMÁTICO POR INTENSIDADE OU MANUAL POR HKL
+        print(f"\nO arquivo carregou um total de {dados_csv.shape[0]} picos válidos.")
+        print("Opções de Filtragem:\n [1] Selecionar automaticamente os picos mais intensos\n [2] Selecionar manualmente por índices de Miller (h k l)")
+        
+        while True:
+            try:
+                modo_input = input("Escolha o modo de filtragem: ").strip()
+                if "python.exe" in modo_input or "&" in modo_input or not modo_input:
+                    continue
+                modo = int(modo_input)
+                if modo in (1, 2):
+                    break
+                else:
+                    print("Opção inválida. Por favor, digite 1 ou 2.")
+            except ValueError:
+                print("[Aviso] Entrada inválida. Digite apenas o número 1 ou 2.")
+                continue
+        
+        if modo == 1:
+            # --- MODO AUTOMÁTICO ---
+            while True:
+                try:
+                    pergunta_picos = input("Quantos picos mais intensos você deseja utilizar para o cálculo? ").strip()
+                    if "python.exe" in pergunta_picos or not pergunta_picos:
+                        continue
+                    num_picos = int(pergunta_picos)
+                    if num_picos > 0:
+                        break
+                    else:
+                        print("Por favor, digite um número maior que zero.")
+                except ValueError:
+                    print("[Aviso] Digite apenas um número inteiro válido.")
+                    continue
+
+            if num_picos > dados_csv.shape[0]:
+                num_picos = dados_csv.shape[0]
+            indices_ordenados = np.argsort(dados_csv[:, 6])[::-1]
+            dados_filtrados = dados_csv[indices_ordenados[:num_picos]]
+            
+        elif modo == 2:
+            # --- MODO SELEÇÃO MANUAL ---
+            print("\nPicos disponíveis no arquivo:")
+            print("Índice |   2-Theta   |   h k l   |  Intensidade")
+            for idx in range(dados_csv.shape[0]):
+                print(f"  [{idx}]  |   {dados_csv[idx, 3]:.2f}°   |  {int(dados_csv[idx, 0])} {int(dados_csv[idx, 1])} {int(dados_csv[idx, 2])}  |  {dados_csv[idx, 6]}")
+                
+            picos_escolhidos_indices = []
+            min_requisito = 4
+            print(f"\nDigite o terno h k l desejado separado por espaços (Exemplo: 0 0 2). Digite 'fim' para encerrar.")
+            
+            while True:
+                entrada = input(f"Selecione um plano h k l (Mínimo restante: {max(0, min_requisito - len(picos_escolhidos_indices))}): ").strip()
+                if entrada.lower() == 'fim':
+                    if len(picos_escolhidos_indices) < min_requisito:
+                        print(f"Erro: Você precisa selecionar pelo menos {min_requisito} picos para resolver este sistema.")
+                        continue
+                    break
+                
+                try:
+                    h_busca, k_busca, l_busca = map(int, entrada.split())
+                    match = np.where((dados_csv[:, 0] == h_busca) & (dados_csv[:, 1] == k_busca) & (dados_csv[:, 2] == l_busca))[0]
+                    
+                    if len(match) > 0:
+                        idx_encontrado = match[0]
+                        if idx_encontrado not in picos_escolhidos_indices:
+                            picos_escolhidos_indices.append(idx_encontrado)
+                            print(f"-> Plano ({h_busca} {k_busca} {l_busca}) adicionado com sucesso! (2-Theta: {dados_csv[idx_encontrado, 3]}°)")
+                        else:
+                            print("[Aviso] Esse plano já foi adicionado anteriormente.")
+                    else:
+                        print("[Erro] Plano h k l não encontrado no arquivo CSV. Tente novamente.")
+                except ValueError:
+                    print("[Erro] Formato inválido. Digite 3 números inteiros separados por espaço.")
+            
+            dados_filtrados = dados_csv[picos_escolhidos_indices]
+            
+        else:
+            indices_ordenados = np.argsort(dados_csv[:, 6])[::-1]
+            dados_filtrados = dados_csv[indices_ordenados[:4]]
+
+        # Reordena os picos selecionados por ângulo 2-Theta para manter a progressão geométrica
+        dados_filtrados = dados_filtrados[np.argsort(dados_filtrados[:, 3])]
+        
+        # Preenche as listas externas globais que já foram declaradas no topo
+        h.extend(dados_filtrados[:, 0].astype(int).tolist())
+        k.extend(dados_filtrados[:, 1].astype(int).tolist())
+        l.extend(dados_filtrados[:, 2].astype(int).tolist())
+        picos.extend(dados_filtrados[:, 3].tolist())
+        
+        print(f"\n[Sucesso] {len(picos)} picos finais integrados para o cálculo combinatório.")
+
+    except Exception as erro:
+        print(f"Erro ao carregar ou processar os dados: {erro}")
+        return
+    
+    conta = 0
+    media_a = float(0)
+    media_b = float(0)
+    media_c = float(0)
+    media_d = float(0)
+    media_volume = float(0)  # Inicialização da média do volume
+
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1
+    tamanhoPicos = len(picos)
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, 4))
+    for combinacao in combinacoes_indices:
+        angulo1 = combinacao[0]
+        angulo2 = combinacao[1]
+        angulo3 = combinacao[2]
+        angulo4 = combinacao[3]
+        s_combina = str(ctCombina) + ": " + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(
+            picos[angulo3]) + " e " + str(picos[angulo4])
+        ctCombina += 1
+        print(s_combina)
+
+        # Definindo as variáveis simbólicas x, y, z, w
+        w, x, y, z = sp.symbols('w x y z')
+
+        # Definindo as equações
+        v1 = h[angulo1] ** 2
+        v2 = k[angulo1] ** 2
+        v3 = l[angulo1] ** 2
+        v4 = 2 * h[angulo1] * l[angulo1]
+        
+        v1a = h[angulo2] ** 2
+        v2a = k[angulo2] ** 2
+        v3a = l[angulo2] ** 2
+        v4a = 2 * h[angulo2] * l[angulo2]
+        
+        v1b = h[angulo3] ** 2
+        v2b = k[angulo3] ** 2
+        v3b = l[angulo3] ** 2
+        v4b = 2 * h[angulo3] * l[angulo3]
+        
+        v1c = h[angulo4] ** 2
+        v2c = k[angulo4] ** 2
+        v3c = l[angulo4] ** 2
+        v4c = 2 * h[angulo4] * l[angulo4]
+
+        r1 = 1 / (distancia[angulo1]) ** 2
+        r2 = 1 / (distancia[angulo2]) ** 2
+        r3 = 1 / (distancia[angulo3]) ** 2
+        r4 = 1 / (distancia[angulo4]) ** 2
+
+        equation1 = sp.Eq((1 / (1-w**2)) * (((v1 / (x ** 2)) + ((v2 * (1-w**2)) / (y ** 2))) + (v3 / (z ** 2)) - ((v4 * w) / (x * z))), r1)
+        equation2 = sp.Eq((1 / (1-w**2)) * (((v1a / (x ** 2)) + ((v2a * (1-w**2)) / (y ** 2))) + (v3a / (z ** 2)) - ((v4a * w) / (x * z))), r2)
+        equation3 = sp.Eq((1 / (1-w**2)) * (((v1b / (x ** 2)) + ((v2b * (1-w**2)) / (y ** 2))) + (v3b / (z ** 2)) - ((v4b * w) / (x * z))), r3)
+        equation4 = sp.Eq((1 / (1-w**2)) * (((v1c / (x ** 2)) + ((v2c * (1-w**2)) / (y ** 2))) + (v3c / (z ** 2)) - ((v4c * w) / (x * z))), r4)
+
+        # --- FILTRO CRISTALOGRÁFICO DE INDEPENDÊNCIA LINEAR ---
+        M_teste = np.array([
+            [v1, v2, v3],
+            [v1a, v2a, v3a],
+            [v1b, v2b, v3b]
+        ])
+        if np.abs(np.linalg.det(M_teste)) < 1e-4:
+            continue
+        # -----------------------------------------------------
+
+        # Resolvendo o sistema de equações
+        solution = sp.solve((equation1, equation2, equation3, equation4), (w, x, y, z))
+        
+        if len(solution) != 0 and isinstance(solution, list) and len(solution) >= 4:
+            try:
+                val_a = float(solution[3][1])
+                val_b = float(solution[3][2])
+                val_c = float(solution[3][3])
+                val_d = float(solution[3][0])
+                
+                if val_a > 0 and val_b > 0 and val_c > 0 and np.abs(val_d) < 1.0:
+                    a.append(val_a)
+                    b.append(val_b)
+                    c.append(val_c)
+                    d.append(val_d)
+                    
+                    # Cálculo do volume celular monoclínico (V = a * b * c * sen(beta))
+                    # sen(beta) = sqrt(1 - cos²(beta)) onde val_d representa cos(beta)
+                    seno_beta = math.sqrt(1.0 - val_d ** 2)
+                    val_volume = val_a * val_b * val_c * seno_beta
+                    lista_volumes_mono.append(val_volume)
+                    
+                    media_a = media_a + val_a
+                    media_b = media_b + val_b
+                    media_c = media_c + val_c
+                    media_d = media_d + val_d
+                    media_volume = media_volume + val_volume
+                    conta += 1
+
+                    print("Solução do sistema de equações:")
+                    print(solution)
+            except (IndexError, TypeError):
+                continue
+
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação matemática conseguiu convergir para uma solução válida.")
+        return
+
+    media_a = media_a / conta
+    media_b = media_b / conta
+    media_c = media_c / conta
+    media_d = media_d / conta
+
+    media_volume = media_volume / conta  # Cálculo da média do volume
+    angulo_beta = math.degrees(math.acos(media_d))
+    print("Monoclínico")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+    for i in range(tamanhoPicos):
+        angulo = i
+        valor = picos[angulo]
+        print("  ", angulo + 1, "     ", valor, "          ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6),
+              "    ", "             ", h[angulo], k[angulo], l[angulo])
+    for i in range(len(a)):
+        print("a" + str(i + 1) + ":" + str(a[i]) + "b" + str(i + 1) + ":" + str(b[i]) + "  c" + str(i + 1) + ":" + str(
+            c[i]) + " d " + str(i + 1) + ":" + str(d[i]) + "  V" + str(i + 1) + ":" + str(lista_volumes_mono[i]))
+    print("Valor médio de a:  ", '{:.{}f}'.format(round((media_a), 6), 6), " angstons")
+    desvio = np.std(a)
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round((desvio), 6), 6), " angstons")
+    print("Valor médio de b:  ", '{:.{}f}'.format(round((media_b), 6), 6), " angstons")
+    desvio_b = np.std(b)
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round((desvio_b), 6), 6), " angstons")
+    print("Valor médio de c:  ", '{:.{}f}'.format(round((media_c), 6), 6), " angstons")
+    desvio_c = np.std(c)
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round((desvio_c), 6), 6), " angstons")
+    print("angulo_alfa = angulo_gama = 90 graus")
+    print("Valor médio de angulo_beta:  ", '{:.{}f}'.format(round((angulo_beta), 6), 6), " graus")
+    desvio_d = np.std(d)
+    if desvio_d < 1.0:
+        angulo_beta_desvio = math.degrees(math.asin(desvio_d))
+    else:
+        angulo_beta_desvio = 0.0
+    print("Desvio-padrão de angulo_beta: ", '{:.{}f}'.format(round((angulo_beta_desvio), 6), 6), " graus")
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round((media_volume), 6), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_mono)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round((desvio_volume), 6), 6), " angstons³")
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA MONOCLÍNICO ===\n"
+        f"Valor médio de a: {media_a:.6f} Å (Desvio-padrão: {desvio:.6f} Å)\n"
+        f"Valor médio de b: {media_b:.6f} Å (Desvio-padrão: {desvio_b:.6f} Å)\n"
+        f"Valor médio de c: {media_c:.6f} Å (Desvio-padrão: {desvio_c:.6f} Å)\n"
+        f"Valor médio de beta: {angulo_beta:.6f}° (Desvio-padrão: {angulo_beta_desvio:.6f}°)\n"
+        f"Fixed Angles: alpha = gamma = 90.0°\n"
+        f"Valor médio do volume: {media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+    )
+    exportar_relatorio_resultados("Monoclinico", conteudo_txt)
+
+def triclinica():
+    a_list = []
+    b_list = []
+    c_list = []
+    alpha_list = []
+    beta_list = []
+    gamma_list = []
+    lista_volumes_tricli = []  # Nome exclusivo para NUNCA conflitar com variáveis de ponto flutuante
+    p = 6
+    
+    conta = 0
+    media_a = 0.0
+    media_b = 0.0
+    media_c = 0.0
+    media_alpha = 0.0
+    media_beta = 0.0
+    media_gamma = 0.0
+    media_volume = 0.0  # Inicialização da média do volume
+
+    # 1. ABERTURA VISUAL DINÂMICA GLOBAL
+    dados_csv, separador = selecionar_arquivo_csv()
+    if dados_csv is None:
+        return
+
+    # ==================================================================
+    # DECLARAÇÃO ANTECIPADA DAS VARIÁVEIS (Garante Escopo Correto)
+    # ==================================================================
+    h = []
+    k = []
+    l = []
+    picos = []
+    # ==================================================================
+
+    try:
+        # 2. SELEÇÃO DE MODOS: AUTOMÁTICO POR INTENSIDADE OU MANUAL POR HKL
+        print(f"\nO arquivo carregou um total de {dados_csv.shape[0]} picos válidos.")
+        print("Opções de Filtragem:\n [1] Selecionar automaticamente os picos mais intensos\n [2] Selecionar manualmente por índices de Miller (h k l)")
+        
+        while True:
+            try:
+                modo_input = input("Escolha o modo de filtragem: ").strip()
+                if "python.exe" in modo_input or "&" in modo_input or not modo_input:
+                    continue
+                modo = int(modo_input)
+                if modo in (1, 2):
+                    break
+                else:
+                    print("Opção inválida. Por favor, digite 1 ou 2.")
+            except ValueError:
+                print("[Aviso] Entrada inválida. Digite apenas o número 1 ou 2.")
+                continue
+        
+        if modo == 1:
+            # --- MODO AUTOMÁTICO ---
+            while True:
+                try:
+                    pergunta_picos = input("Quantos picos mais intensos você deseja utilizar para o cálculo? ").strip()
+                    if "python.exe" in pergunta_picos or not pergunta_picos:
+                        continue
+                    num_picos = int(pergunta_picos)
+                    if num_picos > 0:
+                        break
+                    else:
+                        print("Por favor, digite um número maior que zero.")
+                except ValueError:
+                    print("[Aviso] Digite apenas um número inteiro válido.")
+                    continue
+
+            if num_picos > dados_csv.shape[0]:
+                num_picos = dados_csv.shape[0]
+            indices_ordenados = np.argsort(dados_csv[:, 6])[::-1]
+            dados_filtrados = dados_csv[indices_ordenados[:num_picos]]
+            
+        elif modo == 2:
+            # --- MODO SELEÇÃO MANUAL ---
+            print("\nPicos disponíveis no arquivo:")
+            print("Índice |   2-Theta   |   h k l   |  Intensidade")
+            for idx in range(dados_csv.shape[0]):
+                print(f"  [{idx}]  |   {dados_csv[idx, 3]:.2f}°   |  {int(dados_csv[idx, 0])} {int(dados_csv[idx, 1])} {int(dados_csv[idx, 2])}  |  {dados_csv[idx, 6]}")
+                
+            picos_escolhidos_indices = []
+            min_requisito = 6  # Requisito mínimo para o triclínico é 6 picos
+            print(f"\nDigite o terno h k l desejado separado por espaços (Exemplo: 0 0 1). Digite 'fim' para encerrar.")
+            
+            while True:
+                entrada = input(f"Selecione um plano h k l (Mínimo restante: {max(0, min_requisito - len(picos_escolhidos_indices))}): ").strip()
+                if entrada.lower() == 'fim':
+                    if len(picos_escolhidos_indices) < min_requisito:
+                        print(f"Erro: Você precisa selecionar pelo menos {min_requisito} picos para resolver este sistema.")
+                        continue
+                    break
+                
+                try:
+                    h_busca, k_busca, l_busca = map(int, entrada.split())
+                    match = np.where((dados_csv[:, 0] == h_busca) & (dados_csv[:, 1] == k_busca) & (dados_csv[:, 2] == l_busca))[0]
+                    
+                    if len(match) > 0:
+                        idx_encontrado = match[0]
+                        if idx_encontrado not in picos_escolhidos_indices:
+                            picos_escolhidos_indices.append(idx_encontrado)
+                            print(f"-> Plano ({h_busca} {k_busca} {l_busca}) adicionado com sucesso! (2-Theta: {dados_csv[idx_encontrado, 3]}°)")
+                        else:
+                            print("[Aviso] Esse plano já foi adicionado anteriormente.")
+                    else:
+                        print("[Erro] Plano h k l não encontrado no arquivo CSV. Tente novamente.")
+                except ValueError:
+                    print("[Erro] Formato inválido. Digite 3 números inteiros separados por espaço (Ex: 0 1 2).")
+            
+            dados_filtrados = dados_csv[picos_escolhidos_indices]
+            
+        else:
+            indices_ordenados = np.argsort(dados_csv[:, 6])[::-1]
+            dados_filtrados = dados_csv[indices_ordenados[:6]]
+
+        # Reordena os picos selecionados por ângulo 2-Theta
+        dados_filtrados = dados_filtrados[np.argsort(dados_filtrados[:, 3])]
+        
+        # Preenche com .extend() as listas externas declaradas no topo da função
+        h.extend(dados_filtrados[:, 0].astype(int).tolist())
+        k.extend(dados_filtrados[:, 1].astype(int).tolist())
+        l.extend(dados_filtrados[:, 2].astype(int).tolist())
+        picos.extend(dados_filtrados[:, 3].tolist())
+        
+        print(f"\n[Sucesso] {len(picos)} picos finais integrados para o cálculo combinatório.")
+
+    except Exception as erro:
+        print(f"Erro ao carregar ou processar os dados: {erro}")
+        return
+
+    # 3. EXECUÇÃO DO SEU MOTOR COMBINATÓRIO TRICLÍNICO
+    nome_estrutura, distancia, comp_de_onda = angulosTeste(picos)
+
+    ctCombina = 1
+    tamanhoPicos = len(picos)
+    indices = list(range(tamanhoPicos))
+    combinacoes_indices = list(itertools.combinations(indices, p))  # Combina de 6 em 6
+    
+    print(f"Iniciando o processamento combinatório de {len(combinacoes_indices)} matrizes triclínicas...")
+
+    for combinacao in combinacoes_indices:
+        ang = [combinacao[i] for i in range(6)]
+        
+        # Coeficientes numéricos rápidos para o filtro de determinante 6x6
+        v1, v2, v3, v4, v5, v6 = h[ang[0]]**2, k[ang[0]]**2, l[ang[0]]**2, h[ang[0]]*k[ang[0]], h[ang[0]]*l[ang[0]], k[ang[0]]*l[ang[0]]
+        v1a, v2a, v3a, v4a, v5a, v6a = h[ang[1]]**2, k[ang[1]]**2, l[ang[1]]**2, h[ang[1]]*k[ang[1]], h[ang[1]]*l[ang[1]], k[ang[1]]*l[ang[1]]
+        v1b, v2b, v3b, v4b, v5b, v6b = h[ang[2]]**2, k[ang[2]]**2, l[ang[2]]**2, h[ang[2]]*k[ang[2]], h[ang[2]]*l[ang[2]], k[ang[2]]*l[ang[2]]
+        v1c, v2c, v3c, v4c, v5c, v6c = h[ang[3]]**2, k[ang[3]]**2, l[ang[3]]**2, h[ang[3]]*k[ang[3]], h[ang[3]]*l[ang[3]], k[ang[3]]*l[ang[3]]
+        v1d, v2d, v3d, v4d, v5d, v6d = h[ang[4]]**2, k[ang[4]]**2, l[ang[4]]**2, h[ang[4]]*k[ang[4]], h[ang[4]]*l[ang[4]], k[ang[4]]*l[ang[4]]
+        v1e, v2e, v3e, v4e, v5e, v6e = h[ang[5]]**2, k[ang[5]]**2, l[ang[5]]**2, h[ang[5]]*k[ang[5]], h[ang[5]]*l[ang[5]], k[ang[5]]*l[ang[5]]
+
+        # --- FILTRO CRISTALOGRÁFICO DE INDEPENDÊNCIA LINEAR 6x6 ---
+        M_teste = np.array([
+            [v1, v2, v3, v4, v5, v6],
+            [v1a, v2a, v3a, v4a, v5a, v6a],
+            [v1b, v2b, v3b, v4b, v5b, v6b],
+            [v1c, v2c, v3c, v4c, v5c, v6c],
+            [v1d, v2d, v3d, v4d, v5d, v6d],
+            [v1e, v2e, v3e, v4e, v5e, v6e]
+        ])
+        if np.abs(np.linalg.det(M_teste)) < 1e-4:
+            continue  # Descarta planos linearmente dependentes antes do SymPy
+        # ---------------------------------------------------------
+
+        # Definição das variáveis simbólicas lineares do tensor recíproco
+        x1, x2, x3, x4, x5, x6 = sp.symbols('x1 x2 x3 x4 x5 x6')
+        
+        eqs = []
+        for idx in ang:
+            eq = sp.Eq((h[idx]**2)*x1 + (k[idx]**2)*x2 + (l[idx]**2)*x3 + (h[idx]*k[idx])*x4 + (h[idx]*l[idx])*x5 + (k[idx]*l[idx])*x6, 1 / (distancia[idx]**2))
+            eqs.append(eq)
+
+        solution = sp.solve(eqs, (x1, x2, x3, x4, x5, x6))
+        
+        if len(solution) != 0 and (x1 in solution):
+            try:
+                q11 = float(solution[x1])
+                q22 = float(solution[x2])
+                q33 = float(solution[x3])
+                q12 = float(solution[x4]) / 2.0
+                q13 = float(solution[x5]) / 2.0
+                q23 = float(solution[x6]) / 2.0
+                
+                G_star = np.array([[q11, q12, q13], [q12, q22, q23], [q13, q23, q33]])
+                
+                if np.abs(np.linalg.det(G_star)) < 1e-6:
+                    continue
+                G = np.linalg.inv(G_star)
+                
+                if G[0,0] <= 0 or G[1,1] <= 0 or G[2,2] <= 0:
+                    continue
+                    
+                val_a = np.sqrt(G[0,0])
+                val_b = np.sqrt(G[1,1])
+                val_c = np.sqrt(G[2,2])
+                
+                cos_alpha = G[1,2] / (val_b * val_c)
+                cos_beta  = G[0,2] / (val_a * val_c)
+                cos_gamma = G[0,1] / (val_a * val_b)
+                
+                if np.abs(cos_alpha) >= 1.0 or np.abs(cos_beta) >= 1.0 or np.abs(cos_gamma) >= 1.0:
+                    continue
+                    
+                val_alpha = math.degrees(math.acos(cos_alpha))
+                val_beta  = math.degrees(math.acos(cos_beta))
+                val_gamma = math.degrees(math.acos(cos_gamma))
+                
+                # --- CÁLCULO DO VOLUME TRICLÍNICO PARA CADA COMBINAÇÃO BEM-SUCEDIDA ---
+                rad_al = math.radians(val_alpha)
+                rad_be = math.radians(val_beta)
+                rad_ga = math.radians(val_gamma)
+
+                fator_vol = math.sqrt(1.0 - math.cos(rad_al)**2 - math.cos(rad_be)**2 - math.cos(rad_ga)**2 + 2.0 * math.cos(rad_al) * math.cos(rad_be) * math.cos(rad_ga))
+                val_volume = val_a * val_b * val_c * fator_vol
+                lista_volumes_tricli.append(val_volume)
+                # -----------------------------------------------------------------------
+                a_list.append(val_a)
+                b_list.append(val_b)
+                c_list.append(val_c)
+                alpha_list.append(val_alpha)
+                beta_list.append(val_beta)
+                gamma_list.append(val_gamma)
+                media_a += val_a
+                media_b += val_b
+                media_c += val_c
+                media_alpha += val_alpha
+                media_beta += val_beta
+                media_gamma += val_gamma
+                media_volume += val_volume
+                conta += 1
+                print(f"-> Solução triclínica {conta} calculada com sucesso!")
+            except (IndexError, TypeError, KeyError):
+                continue
+
+    # VALIDAÇÃO DE CONVERGÊNCIA CONTRA DIVISION BY ZERO
+    if conta == 0:
+        print("\n[Aviso] Nenhuma combinação triclínica conseguiu convergir para uma solução válida.")
+        print("Dica: No modo automático, selecione de 10 a 14 picos para dar mais opções de planos hkl lineares.")
+        return
+
+    # Cálculo estatístico das médias finais das soluções estáveis
+    media_a /= conta
+    media_b /= conta
+    media_c /= conta
+    media_alpha /= conta
+    media_beta /= conta
+    media_gamma /= conta
+    media_volume /= conta
+    print("\nTriclínico - Resultados Finais")
+    print("Ângulo |   2-Theta   |   distância interplanar   |   h k l   ")
+    for i in range(tamanhoPicos):
+        print("  ", i + 1, "     ", picos[i], "          ", '{:.{}f}'.format(round((distancia[i]), 6), 6),
+              "    ", "             ", h[i], k[i], l[i])
+    print("\n=== VALORES MÉDIOS E DESVIOS CALCULADOS ===")
+    print("Valor médio de a:  ", '{:.{}f}'.format(round(media_a, 6), 6), " angstons")
+    print("Desvio-padrão de a: ", '{:.{}f}'.format(round(np.std(a_list), 6), 6), " angstons")
+    print("Valor médio de b:  ", '{:.{}f}'.format(round(media_b, 6), 6), " angstons")
+    print("Desvio-padrão de b: ", '{:.{}f}'.format(round(np.std(b_list), 6), 6), " angstons")
+    print("Valor médio de c:  ", '{:.{}f}'.format(round(media_c, 6), 6), " angstons")
+    print("Desvio-padrão de c: ", '{:.{}f}'.format(round(np.std(c_list), 6), 6), " angstons")
+    print("Valor médio de alpha: ", '{:.{}f}'.format(round(media_alpha, 4), 4), " graus")
+    print("Desvio-padrão de alpha: ", '{:.{}f}'.format(round(np.std(alpha_list), 4), 4), " graus")
+    print("Valor médio de beta: ", '{:.{}f}'.format(round(media_beta, 4), 4), " graus")
+    print("Desvio-padrão de beta: ", '{:.{}f}'.format(round(np.std(beta_list), 4), 4), " graus")
+    print("Valor médio de gamma: ", '{:.{}f}'.format(round(media_gamma, 4), 4), " graus")
+    print("Desvio-padrão de gamma: ", '{:.{}f}'.format(round(np.std(gamma_list), 4), 4), " graus")
+    print("Valor médio do volume:  ", '{:.{}f}'.format(round(media_volume), 6), " angstons³")
+    desvio_volume = np.std(lista_volumes_tricli)
+    print("Desvio-padrão de volume: ", '{:.{}f}'.format(round(desvio_volume), 6), " angstons³")
+
+    # Variáveis locais explícitas para evitar alertas de escopo/variáveis não definidas
+    valor_media_a = media_a
+    valor_media_b = media_b
+    valor_media_c = media_c
+    valor_media_alpha = media_alpha
+    valor_media_beta = media_beta
+    valor_media_gamma = media_gamma
+    valor_media_volume = media_volume
+    desvio_a = float(np.std(a_list))
+    desvio_b = float(np.std(b_list))
+    desvio_c = float(np.std(c_list))
+    desvio_alpha = float(np.std(alpha_list))
+    desvio_beta = float(np.std(beta_list))
+    desvio_gamma = float(np.std(gamma_list))
+
+    conteudo_txt = (
+        f"=== RELATÓRIO DE PARÂMETROS DE REDE - SISTEMA TRICLÍNICO ===\n"
+        f"Eixos Diretos (Médias e Dispersões):\n"
+        f"  a = {valor_media_a:.6f} ± {desvio_a:.6f} Å\n"
+        f"  b = {valor_media_b:.6f} ± {desvio_b:.6f} Å\n"
+        f"  c = {valor_media_c:.6f} ± {desvio_c:.6f} Å\n"
+        f"Ângulos Interaxiais:\n"
+        f"  alpha = {valor_media_alpha:.4f}° ± {desvio_alpha:.4f}°\n"
+        f"  beta  = {valor_media_beta:.4f}° ± {desvio_beta:.4f}°\n"
+        f"  gamma = {valor_media_gamma:.4f}° ± {desvio_gamma:.4f}°\n"
+        f"Valor médio do volume: {valor_media_volume:.6f} Å³ (Desvio-padrão: {desvio_volume:.6f} Å³)\n"
+    )
+    exportar_relatorio_resultados("Triclinico", conteudo_txt)
+
+# --- FIM DO ARQUIVO ---
+
+print(" 1- Cúbica\n 2- Tetragonal\n 3- Ortorrômbica\n 4- Hexagonal\n 5- Romboédrica\n 6- Monoclínica\n 7- Triclínica")
+
+# Loop infinito até que o usuário digite um número válido (1 a 7)
 while True:
-try:
-mode_input = input("Choose filtering mode: ").strip()
-if "python.exe" in mode_input or "&" in mode_input or not mode_input:
-continue
-mode = int(mode_input)
-if mode in:
-break
-print("[Warning] Please type 1 or 2.")
-except ValueError:
-print("[Warning] Invalid entry. Please enter 1 or 2.")
-continue
-if mode == 1:
-while True:
-try:
-peaks_query = input("How many of the most intense peaks do you want to use? ").strip()
-if "python.exe" in peaks_query or not peaks_query:
-continue
-num_peaks = int(peaks_query)
-if num_peaks > 0:
-break
-print("Please enter a number greater than zero.")
-except ValueError:
-print("[Warning] Enter a valid integer.")
-continue
-if num_peaks > csv_data.shape[0]:
-num_peaks = csv_data.shape[0]
-sorted_indices = np.argsort(csv_data[:, 6])[::-1]
-filtered_data = csv_data[sorted_indices[:num_peaks]]
-elif mode == 2:
-print("\nAvailable peaks in the file:")
-print("Index |   2-Theta   |   h k l   |  Intensity")
-for idx in range(csv_data.shape[0]):
-print(f"  [{idx}]  |   {csv_data[idx, 3]:.2f}°   |  {int(csv_data[idx, 0])} {int(csv_data[idx, 1])} {int(csv_data[idx, 2])}  |  {csv_data[idx, 6]}")
-chosen_indices = []
-min_required = 4
-print(f"\nEnter the desired h k l triad separated by spaces (Example: 0 0 2). Type 'end' to finish.")
-while True:
-entry = input(f"Select h k l plane (Minimum remaining: {max(0, min_required - len(chosen_indices))}): ").strip()
-if entry.lower() == 'end':
-if len(chosen_indices) < min_required:
-print(f"Error: You must select at least {min_required} peaks to resolve this system.")
-continue
-break
-try:
-h_search, k_search, l_search = map(int, entry.split())
-match = np.where((csv_data[:, 0] == h_search) & (csv_data[:, 1] == k_search) & (csv_data[:, 2] == l_search))[0]
-if len(match) > 0:
-found_idx = match[0]
-if found_idx not in chosen_indices:
-chosen_indices.append(found_idx)
-print(f"-> Plane ({h_search} {k_search} {l_search}) added successfully! (2-Theta: {csv_data[found_idx, 3]}°)")
-else:
-print("[Notice] This plane has already been added.")
-else:
-print("[Error] Plane h k l not found in the file. Try again.")
-except ValueError:
-print("[Error] Invalid format. Enter 3 integers separated by a space.")
-filtered_data = csv_data[chosen_indices]
-else:
-sorted_indices = np.argsort(csv_data[:, 6])[::-1]
-filtered_data = csv_data[sorted_indices[:4]]
-filtered_data = filtered_data[np.argsort(filtered_data[:, 3])]
-h.extend(filtered_data[:, 0].astype(int).tolist())
-k.extend(filtered_data[:, 1].astype(int).tolist())
-l.extend(filtered_data[:, 2].astype(int).tolist())
-peaks.extend(filtered_data[:, 3].tolist())
-print(f"\n[Success] {len(peaks)} final peaks integrated into the combinatorial calculation.")
-except Exception as err:
-print(f"Error loading or processing data: {err}")
-return
-
-conta = 0
-mean_a = float(0)
-mean_b = float(0)
-mean_c = float(0)
-mean_d = float(0)
-structure_name, d_values, wavelength = get_indexed_distances(peaks)
-ct_comb = 1
-total_peaks = len(peaks)
-indices = list(range(total_peaks))
-combinations_indices = list(itertools.combinations(indices, 4))
-for combination in combinations_indices:
-angle1 = combination[0]
-angle2 = combination[1]
-angle3 = combination[2]
-angle4 = combination[3]
-print(f"{ct_comb}: {peaks[angle1]} and {peaks[angle2]} and {peaks[angle3]} and {peaks[angle4]}")
-ct_comb += 1
-w, x, y, z = sp.symbols('w x y z')
-v1 = h[angle1] ** 2
-v2 = k[angle1] ** 2
-v3 = l[angle1] ** 2
-v4 = 2 * h[angle1] * l[angle1]
-v1a = h[angle2] ** 2
-v2a = k[angle2] ** 2
-v3a = l[angle2] ** 2
-v4a = 2 * h[angle2] * l[angle2]
-v1b = h[angle3] ** 2
-v2b = k[angle3] ** 2
-v3b = l[angle3] ** 2
-v4b = 2 * h[angle3] * l[angle3]
-v1c = h[angle4] ** 2
-v2c = k[angle4] ** 2
-v3c = l[angle4] ** 2
-v4c = 2 * h[angle4] * l[angle4]
-r1 = 1 / (d_values[angle1]) ** 2
-r2 = 1 / (d_values[angle2]) ** 2
-r3 = 1 / (d_values[angle3]) ** 2
-r4 = 1 / (d_values[angle4]) ** 2
-equation1 = sp.Eq((1 / (1-w2)) * (((v1 / (x ** 2)) + ((v2 * (1-w2)) / (y ** 2))) + (v3 / (z ** 2)) - ((v4 * w) / (x * z))), r1)
-equation2 = sp.Eq((1 / (1-w2)) * (((v1a / (x ** 2)) + ((v2a * (1-w2)) / (y ** 2))) + (v3a / (z ** 2)) - ((v4a * w) / (x * z))), r2)
-equation3 = sp.Eq((1 / (1-w2)) * (((v1b / (x ** 2)) + ((v2b * (1-w2)) / (y ** 2))) + (w3b / (z ** 2)) - ((v4b * w) / (x * z))), r3)
-equation4 = sp.Eq((1 / (1-w2)) * (((v1c / (x ** 2)) + ((v2c * (1-w2)) / (y ** 2))) + (v3c / (z ** 2)) - ((v4c * w) / (x * z))), r4)
-M_test = np.array([
-[v1, v2, v3],
-[v1a, v2a, v3a],
-[v1b, v2b, v3b]
-])
-if np.abs(np.linalg.det(M_test)) < 1e-4:
-continue
-solution = sp.solve((equation1, equation2, equation3, equation4), (w, x, y, z))
-if len(solution) != 0 and isinstance(solution, list) and len(solution) >= 4:
-try:
-val_a = float(solution[3][1])
-val_b = float(solution[3][2])
-val_c = float(solution[3][3])
-val_d = float(solution[3][0])
-if val_a > 0 and val_b > 0 and val_c > 0 and np.abs(val_d) < 1.0:
-a.append(val_a)
-b.append(val_b)
-c.append(val_c)
-d.append(val_d)
-mean_a = mean_a + val_a
-mean_b = mean_b + val_b
-mean_c = mean_c + val_c
-mean_d = mean_d + val_d
-conta += 1
-print("Equation system solution:")
-print(solution)
-except (IndexError, TypeError):
-continue
-if conta == 0:
-print("\n[Warning] No mathematical combinations converged to a valid solution.")
-return
-mean_a = mean_a / conta
-mean_b = mean_b / conta
-mean_c = mean_c / conta
-mean_d = mean_d / conta
-mean_beta = math.degrees(math.acos(mean_d))
-
-print("Monoclinic")
-print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-for i in range(total_peaks):
-print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
-for i in range(len(a)):
-print("a" + str(i + 1) + ":" + str(a[i]) + "b" + str(i + 1) + ":" + str(b[i]) + "  c" + str(i + 1) + ":" + str(c[i]) + " d " + str(i + 1) + ":" + str(d[i]))
-print("Mean value of a:  ", '{:.{}f}'.format(round((mean_a), 6), 6), " Angstroms")
-std_dev_a = np.std(a)
-print("Standard deviation of a: ", '{:.{}f}'.format(round((std_dev_a), 6), 6), " Angstroms")
-print("Mean value of b:  ", '{:.{}f}'.format(round((mean_b), 6), 6), " Angstroms")
-std_dev_b = np.std(b)
-print("Standard deviation of b: ", '{:.{}f}'.format(round((std_dev_b), 6), 6), " Angstroms")
-print("Mean value of c:  ", '{:.{}f}'.format(round((mean_c), 6), 6), " Angstroms")
-std_dev_c = np.std(c)
-print("Standard deviation of c: ", '{:.{}f}'.format(round((std_dev_c), 6), 6), " Angstroms")
-print("alpha = gamma = 90 degrees")
-print("Mean value of beta:  ", '{:.{}f}'.format(round((mean_beta), 6), 6), " degrees")
-std_dev_d = np.std(d)
-if std_dev_d < 1.0:
-std_dev_beta = math.degrees(math.asin(std_dev_d))
-else:
-std_dev_beta = 0.0
-print("Standard deviation of beta: ", '{:.{}f}'.format(round((std_dev_beta), 6), 6), " degrees")
-report_content = (
-
-f"=== LATTICE PARAMETERS REPORT - MONOCLINIC SYSTEM ===\n"
-f"Mean value of a: {mean_a:.6f} Å (Std Dev: {std_dev_a:.6f} Å)\n"
-f"Mean value of b: {mean_b:.6f} Å (Std Dev: {std_dev_b:.6f} Å)\n"
-f"Mean value of c: {mean_c:.6f} Å (Std Dev: {std_dev_c:.6f} Å)\n"
-f"Mean value of beta: {mean_beta:.6f}° (Std Dev: {std_dev_beta:.6f}°)\n"
-f"Fixed Angles: alpha = gamma = 90.0°\n"
-)
-export_results_report("Monoclinic", report_content)
-
-def triclinic():
-a_list = []
-b_list = []
-c_list = []
-alpha_list = []
-beta_list = []
-gamma_list = []
-p = 6
-
-conta = 0
-media_a = 0.0
-media_b = 0.0
-media_c = 0.0
-media_alpha = 0.0
-media_beta = 0.0
-media_gamma = 0.0
-
-csv_data, delimiter = select_csv_file()
-if csv_data is None:
-return
-
-h = []
-k = []
-l = []
-peaks = []
-
-try:
-print(f"\nThe file loaded a total of {csv_data.shape[0]} valid peaks.")
-print("Filtering Options:\n [1] Automatically select the most intense peaks\n [2] Manually select by Miller indices (h k l)")
-while True:
-try:
-modo_input = input("Choose filtering mode: ").strip()
-if "python.exe" in modo_input or "&" in modo_input or not modo_input:
-continue
-modo = int(modo_input)
-if modo in:
-break
-print("[Warning] Please enter 1 or 2.")
-except ValueError:
-print("[Warning] Please enter 1 or 2.")
-if modo == 1:
-while True:
-try:
-peaks_query = input("How many of the most intense peaks do you want to use? ").strip()
-if "python.exe" in peaks_query or not peaks_query:
-continue
-num_peaks = int(peaks_query)
-if num_peaks > 0:
-break
-print("Please enter a number greater than zero.")
-except ValueError:
-print("[Warning] Enter a valid integer.")
-continue
-if num_peaks > csv_data.shape[0]:
-num_peaks = csv_data.shape[0]
-sorted_indices = np.argsort(csv_data[:, 6])[::-1]
-filtered_data = csv_data[sorted_indices[:num_peaks]]
-elif modo == 2:
-print("\nAvailable peaks in the file:")
-print("Index |   2-Theta   |   h k l   |  Intensity")
-for idx in range(csv_data.shape[0]):
-print(f"  [{idx}]  |   {csv_data[idx, 3]:.2f}°   |  {int(csv_data[idx, 0])} {int(csv_data[idx, 1])} {int(csv_data[idx, 2])}  |  {csv_data[idx, 6]}")
-chosen_indices = []
-min_required = 6
-print(f"\nEnter the desired h k l triad separated by spaces (Example: 0 0 1). Type 'end' to finish.")
-while True:
-entry = input(f"Select h k l plane (Minimum remaining: {max(0, min_required - len(chosen_indices))}): ").strip()
-if entry.lower() == 'end':
-if len(chosen_indices) < min_required:
-print(f"Error: You must select at least {min_required} peaks to resolve this system.")
-continue
-break
-try:
-h_search, k_search, l_search = map(int, entry.split())
-match = np.where((csv_data[:, 0] == h_search) & (csv_data[:, 1] == k_search) & (csv_data[:, 2] == l_search))[0]
-if len(match) > 0:
-found_idx = match[0]
-if found_idx not in chosen_indices:
-chosen_indices.append(found_idx)
-print(f"-> Plane ({h_search} {k_search} {l_search}) added successfully! (2-Theta: {csv_data[found_idx, 3]}°)")
-else:
-print("[Notice] This plane has already been added.")
-else:
-print("[Error] Plane h k l not found in the file. Try again.")
-except ValueError:
-print("[Error] Invalid format. Enter 3 integers separated by space (Ex: 0 1 2).")
-filtered_data = csv_data[chosen_indices]
-else:
-sorted_indices = np.argsort(csv_data[:, 6])[::-1]
-filtered_data = csv_data[sorted_indices[:6]]
-filtered_data = filtered_data[np.argsort(filtered_data[:, 3])]
-h.extend(filtered_data[:, 0].astype(int).tolist())
-k.extend(filtered_data[:, 1].astype(int).tolist())
-l.extend(filtered_data[:, 2].astype(int).tolist())
-peaks.extend(filtered_data[:, 3].tolist())
-print(f"\n[Success] {len(peaks)} final peaks integrated into the combinatorial calculation.")
-except Exception as err:
-print(f"Error loading or processing data: {err}")
-return
-conta = 0
-media_a = float(0)
-media_b = float(0)
-media_c = float(0)
-media_alpha = float(0)
-media_beta = float(0)
-media_gamma = float(0)
-structure_name, d_values, wavelength = get_indexed_distances(peaks)
-ct_comb = 1
-total_peaks = len(peaks)
-indices = list(range(total_peaks))
-combinacoes_indices = list(itertools.combinations(indices, 6))
-print(f"Starting combinatorial processing of {len(combinacoes_indices)} triclinic matrices...")
-for combination in combinacoes_indices:
-ang = [combination[i] for i in range(6)]
-v1, v2, v3, v4, v5, v6 = h[ang[0]]**2, k[ang[0]]**2, l[ang[0]]**2, h[ang[0]]*k[ang[0]], h[ang[0]]*l[ang[0]], k[ang[0]]*l[ang[0]]
-v1a, v2a, v3a, v4a, v5a, v6a = h[ang[1]]**2, k[ang[1]]**2, l[ang[1]]**2, h[ang[1]]*k[ang[1]], h[ang[1]]*l[ang[1]], k[ang[1]]*l[ang[1]]
-v1b, v2b, v3b, v4b, v5b, v6b = h[ang[2]]**2, k[ang[2]]**2, l[ang[2]]**2, h[ang[2]]*k[ang[2]], h[ang[2]]*l[ang[2]], k[ang[2]]*l[ang[2]]
-v1c, v2c, v3c, v4c, v5c, v6c = h[ang[3]]**2, k[ang[3]]**2, l[ang[3]]**2, h[ang[3]]*k[ang[3]], h[ang[3]]*l[ang[3]], k[ang[3]]*l[ang[3]]
-v1d, v2d, v3d, v4d, v5d, v6d = h[ang[4]]**2, k[ang[4]]**2, l[ang[4]]**2, h[ang[4]]*k[ang[4]], h[ang[4]]*l[ang[4]], k[ang[4]]*l[ang[4]]
-v1e, v2e, v3e, v4e, v5e, v6e = h[ang[5]]**2, k[ang[5]]**2, l[ang[5]]**2, h[ang[5]]*k[ang[5]], h[ang[5]]*l[ang[5]], k[ang[5]]*l[ang[5]]
-M_test = np.array([
-[v1, v2, v3, v4, v5, v6],
-[v1a, v2a, v3a, v4a, v5a, v6a],
-[v1b, v2b, v3b, v4b, v5b, v6b],
-[v1c, v2c, v3c, v4c, v5c, v6c],
-[v1d, v2d, v3d, v4d, v5d, v6d],
-[v1e, v2e, v3e, v4e, v5e, v6e]
-])
-if np.abs(np.linalg.det(M_test)) < 1e-4:
-continue
-x1, x2, x3, x4, x5, x6 = sp.symbols('x1 x2 x3 x4 x5 x6')
-eqs = []
-for idx in ang:
-eq = sp.Eq((h[idx]**2)*x1 + (k[idx]**2)*x2 + (l[idx]**2)*x3 + (h[idx]*k[idx])*x4 + (h[idx]*l[idx])*x5 + (k[idx]*l[idx])*x6, 1 / (d_values[idx]**2))
-eqs.append(eq)
-solution = sp.solve(eqs, (x1, x2, x3, x4, x5, x6))
-if len(solution) != 0 and (x1 in solution):
-try:
-q11 = float(solution[x1])
-q22 = float(solution[x2])
-q33 = float(solution[x3])
-q12 = float(solution[x4]) / 2.0
-q13 = float(solution[x5]) / 2.0
-q23 = float(solution[x6]) / 2.0
-G_star = np.array([[q11, q12, q13], [q12, q22, q23], [q13, q23, q33]])
-if np.abs(np.linalg.det(G_star)) < 1e-6:
-continue
-G = np.linalg.inv(G_star)
-if G[0,0] <= 0 or G[1,1] <= 0 or G[2,2] <= 0:
-continue
-val_a = np.sqrt(G[0,0])
-val_b = np.sqrt(G[1,1])
-val_c = np.sqrt(G[2,2])
-cos_alpha = G[1,2] / (val_b * val_c)
-cos_beta  = G[0,2] / (val_a * val_c)
-cos_gamma = G[0,1] / (val_a * val_b)
-if np.abs(cos_alpha) >= 1.0 or np.abs(cos_beta) >= 1.0 or np.abs(cos_gamma) >= 1.0:
-continue
-val_alpha = math.degrees(math.acos(cos_alpha))
-val_beta  = math.degrees(math.acos(cos_beta))
-val_gamma = math.degrees(math.acos(cos_gamma))
-a_list.append(val_a)
-b_list.append(val_b)
-c_list.append(val_c)
-alpha_list.append(val_alpha)
-beta_list.append(val_beta)
-gamma_list.append(val_gamma)
-media_a += val_a
-media_b += val_b
-media_c += val_c
-media_alpha += val_alpha
-media_beta += val_beta
-media_gamma += val_gamma
-conta += 1
-print(f"-> Triclinic solution {conta} successfully computed!")
-except (IndexError, TypeError, KeyError):
-continue
-
-if conta == 0:
-print("\n[Warning] No triclinic combinations converged.")
-print("Tip: In automatic mode, select 10 to 14 peaks to give more linear hkl options.")
-return
-
-media_a /= conta
-media_b /= conta
-media_c /= conta
-media_alpha /= conta
-media_beta /= conta
-media_gamma /= conta
-
-print("\nTriclinic - Final Results")
-print("Peak |   2-Theta   |   Interplanar Spacing (d)   |   h k l   ")
-for i in range(total_peaks):
-print("  ", i + 1, "     ", peaks[i], "          ", '{:.{}f}'.format(round((d_values[i]), 6), 6), "             ", h[i], k[i], l[i])
-print("\nMean value of a:  ", '{:.{}f}'.format(round(media_a, 6), 6), " Angstroms")
-print("Standard deviation of a: ", '{:.{}f}'.format(round(np.std(a_list), 6), 6), " Angstroms")
-print("Mean value of b:  ", '{:.{}f}'.format(round(media_b, 6), 6), " Angstroms")
-print("Standard deviation of b: ", '{:.{}f}'.format(round(np.std(b_list), 6), 6), " Angstroms")
-print("Mean value of c:  ", '{:.{}f}'.format(round(media_c, 6), 6), " Angstroms")
-print("Standard deviation of c: ", '{:.{}f}'.format(round(np.std(c_list), 6), 6), " Angstroms")
-print("Mean value of alpha: ", '{:.{}f}'.format(round(media_alpha, 4), 4), " degrees")
-print("Standard deviation of alpha: ", '{:.{}f}'.format(round(np.std(alpha_list), 4), 4), " degrees")
-print("Mean value of beta: ", '{:.{}f}'.format(round(media_beta, 4), 4), " degrees")
-print("Standard deviation of beta: ", '{:.{}f}'.format(round(np.std(beta_list), 4), 4), " degrees")
-print("Mean value of gamma: ", '{:.{}f}'.format(round(media_gamma, 4), 4), " degrees")
-print("Standard deviation of gamma: ", '{:.{}f}'.format(round(np.std(gamma_list), 4), 4), " degrees")
-report_content = (
-
-f"=== LATTICE PARAMETERS REPORT - TRICLINIC SYSTEM ===\n"
-f"Direct Axis (Means and Deviations):\n"
-f"  a = {media_a:.6f} ± {np.std(a_list):.6f} Å\n"
-f"  b = {media_b:.6f} ± {np.std(b_list):.6f} Å\n"
-f"  c = {media_c:.6f} ± {np.std(c_list):.6f} Å\n"
-f"Interaxial Angles:\n"
-f"  alpha = {media_alpha:.4f}° ± {np.std(alpha_list):.4f}°\n"
-f"  beta  = {media_beta:.4f}° ± {np.std(beta_list):.4f}°\n"
-f"  gamma = {media_gamma:.4f}° ± {np.std(gamma_list):.4f}°\n"
-)
-export_results_report("Triclinic", report_content)
-
-print(" 1- Cubic\n 2- Tetragonal\n 3- Orthorhombic\n 4- Hexagonal\n 5- Rhombohedral\n 6- Monoclinic\n 7- Triclinic")
-while True:
-try:
-option = int(input("Enter crystal system type: "))
-if option == 1:
-cubic()
-break
-elif option == 2:
-tetragonal()
-break
-elif option == 3:
-orthorhombic()
-break
-elif option == 4:
-hexagonal()
-break
-elif option == 5:
-rhombohedral()
-break
-elif option == 6:
-monoclinic()
-break
-elif option == 7:
-triclinic()
-break
-else:
-print("Invalid option. Please choose a number from 1 to 7.")
-except ValueError:
-
-print("\n[Notice] Terminal command intercepted. Please enter only the number corresponding to the structure.")
-print("1-Cubic | 2-Tetragonal | 3-Orthorhombic | 4-Hexagonal | 5-Rhombohedral | 6-Monoclinic | 7-Triclinic")
-continue
+    try:
+        opcao = int(input("Digite tipo de estrutura: "))
+        
+        if opcao == 1:
+            cubica()
+            break
+        elif opcao == 2:
+            tetragonal()
+            break
+        elif opcao == 3:
+            ortorrombica()
+            break
+        elif opcao == 4:
+            hexagonal()
+            break
+        elif opcao == 5:
+            romboedrica()
+            break
+        elif opcao == 6:
+            monoclinica()
+            break
+        elif opcao == 7:
+            triclinica()
+            break
+        else:
+            print("Opção inválida. Por favor, escolha um número de 1 a 7.")
+            
+    except ValueError:
+        # Se o terminal injetar um texto ou comando inválido, o código cai aqui em vez de quebrar
+        print("\n[Aviso] Comando do terminal interceptado. Por favor, digite apenas o número correspondente à estrutura.")
+        print("1-Cúbica | 2-Tetragonal | 3-Ortorrômbica | 4-Hexagonal | 5-Romboédrica | 6-Monoclínica | 7-Triclínica")
+        continue
