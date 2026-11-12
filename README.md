@@ -21,7 +21,7 @@ The relationship between the interplanar spacing (d_hkl) and the reciprocal latt
 
 ## 🤝 Acknowledgments & Citation
 
-Special thanks to **Lloyd McDonald (Mac)** (https://independent.academia.edu/HerndonMac) for his outstanding peer review, mathematical validation, and contributions to the reciprocal-metric tensor solver framework.
+Special thanks to **Lloyd McDonald (Mac)** (https://independent.academia.edu/HerndonMac) for his outstanding peer review, mathematical validation, and contributions to the reciprocal-metric tensor solver framework. The file lattice_metric_trial.py is available.
 
 ```bibtex
 @article{soares2026deterministic,
