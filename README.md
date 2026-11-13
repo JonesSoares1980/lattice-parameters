@@ -1,37 +1,29 @@
 # Deterministic Combinatorial Calculation of Lattice Parameters Using Python
 
-Official repository containing the Python implementation of a deterministic combinatorial framework designed to calculate unit-cell parameters directly from indexed powder X-ray diffraction data (d_hkl), bypassing complex global profile fitting routines such as Rietveld or Le Bail refinement.
+Official repository for calculating unit-cell parameters from powder X-ray diffraction data using Python.
 
-## 🚀 Key Features & Architectural Stabilization
+## 🚀 Key Features
 
-* **High Performance:** Resolves millions of algebraic matrix combinations in seconds utilizing high-performance NumPy arrays.
-* **Algebraic Soundness:** Migrated from non-linear symbolic systems (SymPy) to a linearized reciprocal-metric tensor solver framework.
-* **Massive Datasets Support:** Benchmark-tested with expanded arrays of up to 124 reflections and millions of simultaneous permutations.
+* **Performance & Verification:** Utilizes vectorized NumPy arrays (`lattice_metric_trial.py`) and a reciprocal-metric tensor solver.
+* **Universal CSV Input (`csv_input.py`):** Automatically detects delimiters, decimal commas, named columns, and validates Miller indices and $2\theta$ bounds.
+* **Console Output:** Streams subset combinations with optional listing options.
 
-## 📈 Reproducibility & Technical Highlights
+## 📦 Repository Structure
 
-* **Peak Selection Context:** Manual conditioning of hkl reflections (such as the SrCO3 dataset filtered down to 66 reflections to isolate true geometric metrics).
-* **The 3x3 Filtering Update:** Adoption of full-row determinant evaluation (Bareiss elimination) to ensure structural rank checking, replacing the previous restrictive geometric pre-filter.
-* **Statistical Dispersion (sigma):** Robust statistical validation with global averages converging smoothly to the ideal database constants and an absolute chemical accuracy of Z_exact = 11.9985.
+* `updated_code.py`: Interactive GUI script with visual file selection and report export.
+* `lattice_metric_trial.py`: Linear reciprocal-metric tensor solver kernel.
+* `csv_input.py`: Named-column CSV parser and input validator.
+* `verify_soares.py`: Standalone verification script.
 
-## 🔬 Mathematical Foundation
-
-The relationship between the interplanar spacing (d_hkl) and the reciprocal lattice constants is governed by the quadratic form:
-1/d_hkl^2 = h^2 Q_{11} + k^2 Q_{22} + l^2 Q_{33} + 2hk Q_{12} + 2hl Q_{13} + 2kl Q_{23}
-
-## 🤝 Acknowledgments & Citation
-
-Special thanks to **Lloyd McDonald (Mac)** (https://independent.academia.edu/HerndonMac) for his outstanding peer review, mathematical validation, and contributions to the reciprocal-metric tensor solver framework. The file lattice_metric_trial.py is available.
-
-```bibtex
-@article{soares2026deterministic,
-  author  = {Soares, Jones and Soares, Jobson},
-  title   = {Deterministic combinatorial calculation of lattice parameters using Python},
-  journal = {Academia Materials Science},
-  volume  = {3},
-  number  = {3},
-  year    = {2026},
-  pages   = {1--11},
-  doi     = {10.20935/AcadMatSci8544}
-}
+```bash
+pip install -r requirements.txt
 ```
+*(Requires Python 3.12+, NumPy, SciPy, SymPy, and Tkinter).*
+
+## 🧪 Reproducibility
+
+* Run `python lattice_metric_trial.py --self-test` to validate reference benchmarks ($\text{SrSiO}_3$ and $\text{ZnO}$).
+
+## 🤝 Acknowledgments
+
+Special thanks to **Lloyd H. McDonald (Mac)** for peer review and contributions to the solver kernel and CSV parser.
