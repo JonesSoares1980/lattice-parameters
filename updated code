@@ -13,6 +13,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 from lattice_metric_trial import solve_subset
+from csv_input import load_diffraction_table
 
 def selecionar_arquivo_csv():
     """
@@ -35,26 +36,8 @@ def selecionar_arquivo_csv():
         return None, None
         
     try:
-        # Identifica o delimitador automaticamente (; ou ,)
-        with open(caminho_arquivo, 'r', encoding='utf-8') as f:
-            linhas = f.readlines()
-        separador = ';' if ';' in linhas[0] else ','
-        
-        # Tratamento de vírgula decimal (padrão brasileiro) se houver
-        linhas_processadas = [linhas[0]]
-        for linha in linhas[1:]:
-            if linha.strip():
-                if separador == ';':
-                    linha = linha.replace(',', '.')
-                linhas_processadas.append(linha)
-                
-        # Carrega a matriz de dados via numpy
-        dados_csv = np.genfromtxt(linhas_processadas, delimiter=separador, skip_header=1)
-        
-        # Limpeza preventiva contra NaNs e garante 2-Theta (coluna 3) > 0
-        dados_csv = dados_csv[~np.isnan(dados_csv[:, 3])]
-        dados_csv = dados_csv[dados_csv[:, 3] > 0]
-        
+        dados_csv, separador = load_diffraction_table(caminho_arquivo, require_intensity=True, return_delimiter=True)
+
         print(f"-> Arquivo carregado com sucesso: {os.path.basename(caminho_arquivo)}")
         return dados_csv, separador
         
@@ -809,7 +792,7 @@ def romboedrica(densidade, massa_molar):  # Atualizado para receber os parâmetr
     )
     exportar_relatorio_resultados("Romboedrico", conteudo_txt)
 
-def monoclinica(densidade, massa_molar): # Atualizado para receber os parâmetros do menu global
+def monoclinica(densidade, massa_molar, detalhar_combinacoes=False): # Atualizado para receber os parâmetros do menu global
     a = []
     b = []
     c = []
@@ -823,6 +806,10 @@ def monoclinica(densidade, massa_molar): # Atualizado para receber os parâmetro
     # 1. Abertura visual dinâmica global (Retorna os dados limpos da planilha)
     dados_csv, separador = selecionar_arquivo_csv()
     if dados_csv is None:
+        return
+
+    if len(dados_csv) < 4:
+        print("[Erro] O sistema monoclínico requer pelo menos quatro reflexões.")
         return
 
     # =================================================================
@@ -947,7 +934,7 @@ def monoclinica(densidade, massa_molar): # Atualizado para receber os parâmetro
     ctCombina = 1
     tamanhoPicos = len(picos)
     indices = list(range(tamanhoPicos))
-    combinacoes_indices = list(itertools.combinations(indices, 4))
+    combinacoes_indices = itertools.combinations(indices, 4)
 
     for combinacao in combinacoes_indices:
         angulo1 = combinacao[0]
@@ -957,7 +944,8 @@ def monoclinica(densidade, massa_molar): # Atualizado para receber os parâmetro
 
         s_combina = str(ctCombina) + ":" + str(picos[angulo1]) + " e " + str(picos[angulo2]) + " e " + str(picos[angulo3]) + " e " + str(picos[angulo4])
         ctCombina += 1
-        print(s_combina)
+        if detalhar_combinacoes:
+            print(s_combina)
 
         # # Definindo as variáveis simbólicas w, x, y, z
         # w, x, y, z = sp.symbols('w x y z')
@@ -1105,7 +1093,7 @@ def monoclinica(densidade, massa_molar): # Atualizado para receber os parâmetro
         print("", angulo + 1, "", valor, " ", '{:.{}f}'.format(round((distancia[angulo]), 6), 6), " , ", h[angulo], k[angulo], l[angulo])
 
     # Laço 2: Listagem de todas as soluções individuais calculadas
-    for i in range(len(a)):
+    for i in range(len(a)) if detalhar_combinacoes else ():
         print("a" + str(i + 1) + ":" + str(a[i]) + " b" + str(i + 1) + ":" + str(b[i]) + " c" + str(i + 1) + ":" + str(c[i]) + " d" + str(i + 1) + ":" + str(beta[i]) + " V" + str(i + 1) + ":" + str(lista_volumes_mono[i]))
 
     # Bloco de Médias e Desvios (Retirados de dentro do laço anterior)
